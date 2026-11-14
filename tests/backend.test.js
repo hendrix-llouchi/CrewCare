@@ -230,3 +230,50 @@ test('sleep well above baseline is not green', () => {
 
   assert.ok(['amber', 'red'].includes(trends.indicatorStatus(maya, 'sleepHours', readings)));
 });
+
+test('queue rejects empty text without saving a message', () => {
+  const sandbox = loadScripts(['queue.js']);
+  const queue = sandbox.window.CrewCareQueue;
+
+  assert.equal(queue.queueMessage('   ', 'a1', 'Mars'), null);
+  assert.equal(sandbox.localStorage.getItem('crewcare.outbox.v1'), null);
+});
+
+test('queue rejects messages longer than 500 characters without saving', () => {
+  const sandbox = loadScripts(['queue.js']);
+  const queue = sandbox.window.CrewCareQueue;
+
+  assert.equal(queue.queueMessage('x'.repeat(501), 'a1', 'Mars'), null);
+  assert.equal(sandbox.localStorage.getItem('crewcare.outbox.v1'), null);
+});
+
+test('messages queued back-to-back have different ids', () => {
+  const queue = loadScripts(['queue.js']).window.CrewCareQueue;
+
+  const first = queue.queueMessage('First status', 'a1', 'Mars');
+  const second = queue.queueMessage('Second status', 'a2', 'Mars');
+
+  assert.notEqual(first.id, second.id);
+});
+
+test('Moon and ISS messages use their configured real and demo delays', () => {
+  const queue = loadScripts(['queue.js']).window.CrewCareQueue;
+
+  const moon = queue.queueMessage('Moon status', 'a1', 'Moon');
+  const iss = queue.queueMessage('ISS status', 'a2', 'ISS');
+
+  assert.equal(moon.delayMinutes, 0.02);
+  assert.equal(moon.demoSeconds, 5);
+  assert.equal(iss.delayMinutes, 0);
+  assert.equal(iss.demoSeconds, 5);
+});
+
+test('unknown message environment defaults to Mars', () => {
+  const queue = loadScripts(['queue.js']).window.CrewCareQueue;
+
+  const message = queue.queueMessage('Status update', 'a4', 'Europa');
+
+  assert.equal(message.environment, 'Mars');
+  assert.equal(message.delayMinutes, 22);
+  assert.equal(message.demoSeconds, 30);
+});
