@@ -21,11 +21,17 @@
     try { return JSON.parse(localStorage.getItem(OUTBOX_KEY) || '[]'); } catch (e) { return []; }
   }
   function saveOutbox(list) {
-    try { localStorage.setItem(OUTBOX_KEY, JSON.stringify(list)); } catch (e) {}
+    try {
+      localStorage.setItem(OUTBOX_KEY, JSON.stringify(list));
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 
   // Save a message as pending with a countdown end time. Returns the saved message.
   function queueMessage(text, astronautId, environment) {
+    if (typeof text !== 'string' || !text.trim()) return null;
     var env = ENVIRONMENTS[environment] || ENVIRONMENTS.Mars;
     var msg = {
       id: 'm' + Date.now(), astronautId: astronautId || null, text: text,
@@ -35,7 +41,7 @@
     };
     var list = loadOutbox();
     list.push(msg);
-    saveOutbox(list);
+    if (!saveOutbox(list)) return null;
     return msg;
   }
 

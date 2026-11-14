@@ -22,6 +22,14 @@
 
   function readingsFor(id) { return S.loadReadings(id); }
   function astronaut(id) { return D.astronauts.find(function (a) { return a.id === id; }); }
+  function latestRecordedValue(readings, field) {
+    for (var i = readings.length - 1; i >= 0; i--) {
+      var value = readings[i][field];
+      if (value !== null && value !== undefined && value !== '') return value;
+    }
+    return null;
+  }
+  function displayRecordedValue(value) { return value === null ? 'not recorded' : value; }
 
   // ---- Navigation ----
   function show(screen) {
@@ -73,7 +81,6 @@
     var a = astronaut(state.astronautId);
     var rs = readingsFor(a.id);
     var overall = T.overallStatus(a, rs);
-    var latest = rs[rs.length - 1];
     $('detail-name').textContent = a.name + ' — ' + a.role;
     $('detail-story').textContent = a.storyLabel + '. Baseline is their own pre-flight average.';
     var st = $('detail-status'); st.innerHTML = '';
@@ -88,8 +95,10 @@
     });
     renderBodyInfo();
     renderDetailChart();
-    $('detail-radiation').textContent = 'Radiation so far: ' + latest.radiationMsvCumulative + ' mSv cumulative. Context only: ISS crew average about 1 mSv per day. That is an average, not a safety limit.';
-    $('detail-sleep').textContent = 'Sleep last night: ' + latest.sleepHours + ' hours (scheduled 8.5 hours; ISS crew average about 6.1 hours). Readiness ' + T.readinessScore(a, rs) + ' / 100 from sleep, mood and resting heart-rate drift.';
+    var radiation = latestRecordedValue(rs, 'radiationMsvCumulative');
+    var sleepHours = latestRecordedValue(rs, 'sleepHours');
+    $('detail-radiation').textContent = 'Radiation so far: ' + displayRecordedValue(radiation) + ' mSv cumulative. Context only: ISS crew average about 1 mSv per day. That is an average, not a safety limit.';
+    $('detail-sleep').textContent = 'Sleep last night: ' + displayRecordedValue(sleepHours) + ' hours (scheduled 8.5 hours; ISS crew average about 6.1 hours). Readiness ' + T.readinessScore(a, rs) + ' / 100 from sleep, mood and resting heart-rate drift.';
     var ev = $('detail-evidence'); ev.innerHTML = '';
     G.EVIDENCE.forEach(function (panel) {
       var box = el('div', 'queue-item');
@@ -103,19 +112,20 @@
     var a = astronaut(state.astronautId);
     var rs = readingsFor(a.id);
     var part = BODY_PARTS.find(function (p) { return p.key === state.bodyPart; }) || BODY_PARTS[0];
-    var latest = rs[rs.length - 1];
     var box = $('body-info'); box.innerHTML = '';
     if (part.key === 'eyes') {
-      var sans = T.sansStatus(latest.eyeChangeUm);
-      var p1 = el('p'); p1.appendChild(document.createTextNode('Eyes — retinal change ' + latest.eyeChangeUm + ' µm. Status: ')); p1.appendChild(statusHtml(sans, '→'));
+      var eyeChange = latestRecordedValue(rs, 'eyeChangeUm');
+      var sans = T.sansStatus(eyeChange);
+      var p1 = el('p'); p1.appendChild(document.createTextNode('Eyes — retinal change ' + displayRecordedValue(eyeChange) + ' µm. Status: ')); p1.appendChild(statusHtml(sans, '→'));
       box.appendChild(p1);
       box.appendChild(el('p', null, 'Published SANS threshold: +20 micrometres is an early sign, +55 micrometres is concerning. This is the only published threshold in the app.'));
       return;
     }
     var ind = part.indicator;
     var level = T.indicatorStatus(a, ind, rs);
+    var value = latestRecordedValue(rs, T.INDICATORS[ind].field);
     var info = el('p');
-    info.appendChild(document.createTextNode(part.label + ' — ' + T.INDICATORS[ind].label + ': ' + latest[T.INDICATORS[ind].field] + ' ' + T.INDICATORS[ind].unit + '. Status: '));
+    info.appendChild(document.createTextNode(part.label + ' — ' + T.INDICATORS[ind].label + ': ' + displayRecordedValue(value) + ' ' + T.INDICATORS[ind].unit + '. Status: '));
     info.appendChild(statusHtml(level, T.trendArrow(a, ind, rs)));
     box.appendChild(info);
     box.appendChild(el('p', null, T.plainReason(a, ind, rs)));

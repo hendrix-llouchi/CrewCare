@@ -10,22 +10,22 @@
   'use strict';
 
   var STEPS = [
-    { id: 'responsive', step: 1, total: 5, question: 'Is the crewmate responsive? Shout their name and tap their shoulder.',
+    { id: 'responsive', step: 1, total: 4, question: 'Is the crewmate responsive? Shout their name and tap their shoulder.',
       options: [
         { label: 'Yes — they respond', next: 'breathing' },
         { label: 'No — no response', next: 'outcome-red-unresponsive' },
         { label: 'Not sure', next: 'breathing' } ] },
-    { id: 'breathing', step: 2, total: 5, question: 'Are they breathing? Watch the chest for 10 seconds.',
+    { id: 'breathing', step: 2, total: 4, question: 'Are they breathing? Watch the chest for 10 seconds.',
       options: [
         { label: 'Yes — breathing normally', next: 'pulse' },
         { label: 'No — not breathing', next: 'outcome-red-notbreathing' },
         { label: 'Not sure / gasping', next: 'outcome-red-notbreathing' } ] },
-    { id: 'pulse', step: 3, total: 5, question: 'Can you feel a pulse? Two fingers on the side of the neck, 10 seconds.',
+    { id: 'pulse', step: 3, total: 4, question: 'Can you feel a pulse? Two fingers on the side of the neck, 10 seconds.',
       options: [
         { label: 'Yes — pulse felt', next: 'chestpain' },
         { label: 'No — no pulse', next: 'outcome-red-nopulse' },
         { label: 'Not sure', next: 'chestpain' } ] },
-    { id: 'chestpain', step: 4, total: 5, question: 'Is the chest pain still there? Is it crushing or spreading to the arm or jaw?',
+    { id: 'chestpain', step: 4, total: 4, question: 'Is the chest pain still there? Is it crushing or spreading to the arm or jaw?',
       options: [
         { label: 'Yes — severe or spreading', next: 'outcome-red-chestpain' },
         { label: 'Yes — mild, staying put', next: 'outcome-amber-chestpain' },

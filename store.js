@@ -169,11 +169,19 @@
     if (!astronautId) return [];
 
     var bundled = bundledReadings(astronautId);
-    var user = loadUserReadings().filter(function (reading) {
-      return reading.astronautId === astronautId;
+    var userByDate = {};
+    loadUserReadings().forEach(function (reading) {
+      if (reading.astronautId === astronautId && typeof reading.date === 'string') {
+        userByDate[reading.date] = reading;
+      }
     });
+    var userDates = Object.keys(userByDate);
+    var simulatedWithoutSameDayUser = bundled.filter(function (reading) {
+      return !reading || !Object.prototype.hasOwnProperty.call(userByDate, reading.date);
+    });
+    var user = userDates.map(function (date) { return userByDate[date]; });
 
-    return bundled.concat(user).sort(function (a, b) {
+    return simulatedWithoutSameDayUser.concat(user).sort(function (a, b) {
       var dateA = typeof a.date === 'string' ? a.date : '';
       var dateB = typeof b.date === 'string' ? b.date : '';
       return dateA < dateB ? -1 : dateA > dateB ? 1 : 0;

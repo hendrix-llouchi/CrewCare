@@ -185,3 +185,48 @@ test('guidance exposes every tracked indicator and evidence panels', () => {
   }
   assert.ok(guidance.EVIDENCE.length >= 1);
 });
+
+test('same-day user check-in replaces its simulated reading in the merged history', () => {
+  const data = getData();
+  const sandbox = loadScripts(['store.js'], { window: { CREWCARE_DATA: data } });
+  const store = sandbox.window.CrewCareStore;
+  const result = store.saveReading({
+    astronautId: 'a1', date: '2026-11-14', bpSys: 132, bpDia: null,
+    heartRate: null, bloodSugar: null, temp: null, sleepHours: null, mood: null,
+    radiationMsvCumulative: null, eyeChangeUm: null
+  });
+
+  assert.equal(result.ok, true);
+  const readings = store.loadReadings('a1');
+  const sameDay = readings.filter((reading) => reading.date === '2026-11-14');
+  assert.equal(readings.length, 30);
+  assert.equal(sameDay.length, 1);
+  assert.equal(sameDay[0].source, 'user');
+  assert.equal(sameDay[0].bpSys, 132);
+});
+
+test('worsening systolic pressure trend upgrades Nia to amber before the full band', () => {
+  const data = getData();
+  const sandbox = loadScripts(['trends.js'], { window: { CREWCARE_DATA: data } });
+  const trends = sandbox.window.CrewCareTrends;
+  const nia = data.astronauts.find((astronaut) => astronaut.id === 'a3');
+  const firstSixReadings = data.readings
+    .filter((reading) => reading.astronautId === 'a3')
+    .slice(0, 6);
+
+  assert.equal(trends.indicatorStatus(nia, 'bpSys', firstSixReadings), 'amber');
+});
+
+test('sleep well above baseline is not green', () => {
+  const data = getData();
+  const sandbox = loadScripts(['trends.js'], { window: { CREWCARE_DATA: data } });
+  const trends = sandbox.window.CrewCareTrends;
+  const maya = data.astronauts.find((astronaut) => astronaut.id === 'a1');
+  const readings = [
+    { date: '2026-11-12', sleepHours: 14 },
+    { date: '2026-11-13', sleepHours: 14 },
+    { date: '2026-11-14', sleepHours: 14 }
+  ];
+
+  assert.ok(['amber', 'red'].includes(trends.indicatorStatus(maya, 'sleepHours', readings)));
+});

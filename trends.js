@@ -7,7 +7,6 @@
   // Demo-only comparison bands; these are not NASA rules or medical limits.
   var THRESHOLDS = {
     pctGreen: 5,
-    pctAmber: 10,
     pctRed: 10,
     pctSharp: 15,
     bloodSugarGreen: 0.5,
@@ -97,6 +96,33 @@
     };
   }
 
+  function directionTolerance(baseline) {
+    return Math.max(0.05, Math.abs(baseline || 0) * 0.005);
+  }
+
+  function directionBetween(indicator, baseline, windows) {
+    if (!windows || windows.recent === null || windows.previous === null) return 'flat';
+    var change = windows.recent - windows.previous;
+    var tolerance = directionTolerance(baseline);
+    if (change > tolerance) return 'up';
+    if (change < -tolerance) return 'down';
+    return 'flat';
+  }
+
+  function isWorsening(indicator, baseline, windows) {
+    var direction = directionBetween(indicator, baseline, windows);
+    if (direction === 'flat') return false;
+    return Math.abs(windows.recent - baseline) > Math.abs(windows.previous - baseline);
+  }
+
+  function halfAmberBoundary(indicator, drift, baseline) {
+    if (indicator === 'bloodSugar') return THRESHOLDS.bloodSugarGreen / 2;
+    if (indicator === 'temp') return THRESHOLDS.tempGreen / 2;
+    if (indicator === 'sleepHours') return (drift > 0 ? 2 : THRESHOLDS.sleepGreen) / 2;
+    if (indicator === 'mood') return (drift > 0 ? 2 : THRESHOLDS.moodGreen) / 2;
+    return (Math.abs(baseline) * THRESHOLDS.pctGreen / 100) / 2;
+  }
+
   function rank(level) {
     return level === 'red' ? 3 : level === 'amber' ? 2 : 1;
   }
@@ -110,33 +136,44 @@
     var baseline = astronaut.baseline[indicator];
     var drift = recent - baseline;
     var distance = Math.abs(drift);
+    var status = 'green';
 
     if (indicator === 'sleepHours') {
-      if (drift >= 0) return 'green';
-      if (distance > THRESHOLDS.sleepAmber) return 'red';
-      return distance >= THRESHOLDS.sleepGreen ? 'amber' : 'green';
+      if (drift < 0) {
+        if (distance > THRESHOLDS.sleepAmber) status = 'red';
+        else if (distance >= THRESHOLDS.sleepGreen) status = 'amber';
+      } else {
+        if (drift > 3) status = 'red';
+        else if (drift > 2) status = 'amber';
+      }
+    } else if (indicator === 'mood') {
+      if (drift < 0) {
+        if (distance >= THRESHOLDS.moodAmber) status = 'red';
+        else if (distance >= THRESHOLDS.moodGreen) status = 'amber';
+      } else {
+        if (drift > 3) status = 'red';
+        else if (drift >= 2) status = 'amber';
+      }
+    } else if (indicator === 'bloodSugar') {
+      if (distance > THRESHOLDS.bloodSugarAmber) status = 'red';
+      else if (distance >= THRESHOLDS.bloodSugarGreen) status = 'amber';
+    } else if (indicator === 'temp') {
+      if (distance > THRESHOLDS.tempAmber) status = 'red';
+      else if (distance >= THRESHOLDS.tempGreen) status = 'amber';
+    } else {
+      var pct = Math.abs(driftPct(recent, baseline));
+      if (pct > THRESHOLDS.pctRed) status = 'red';
+      else if (pct > THRESHOLDS.pctGreen) status = 'amber';
     }
 
-    if (indicator === 'mood') {
-      if (drift >= 0) return 'green';
-      if (distance >= THRESHOLDS.moodAmber) return 'red';
-      return distance >= THRESHOLDS.moodGreen ? 'amber' : 'green';
+    if (status === 'green') {
+      var windows = directionWindow(readings, indicator);
+      if (isWorsening(indicator, baseline, windows) &&
+          distance > halfAmberBoundary(indicator, drift, baseline)) {
+        return 'amber';
+      }
     }
-
-    if (indicator === 'bloodSugar') {
-      if (distance > THRESHOLDS.bloodSugarAmber) return 'red';
-      return distance >= THRESHOLDS.bloodSugarGreen ? 'amber' : 'green';
-    }
-
-    if (indicator === 'temp') {
-      if (distance > THRESHOLDS.tempAmber) return 'red';
-      return distance >= THRESHOLDS.tempGreen ? 'amber' : 'green';
-    }
-
-    var pct = Math.abs(driftPct(recent, baseline));
-    if (pct > THRESHOLDS.pctRed) return 'red';
-    if (pct > THRESHOLDS.pctGreen) return 'amber';
-    return 'green';
+    return status;
   }
 
   function overallStatus(astronaut, readings) {
@@ -225,13 +262,8 @@
   }
 
   function trendArrow(astronaut, indicator, readings) {
-    var values = fieldValues(readings, indicator);
-    if (values.length < 2) return 'flat';
-    var first = values[0];
-    var last = values[values.length - 1];
-    if (last > first) return 'up';
-    if (last < first) return 'down';
-    return 'flat';
+    if (!validBaseline(astronaut, indicator)) return 'flat';
+    return directionBetween(indicator, astronaut.baseline[indicator], directionWindow(readings, indicator));
   }
 
   function plainReason(astronaut, indicator, readings) {
@@ -249,15 +281,16 @@
     var direction;
     var relation;
 
+    var directionResult = directionBetween(indicator, baseline, windows);
     if (windows.previous === null || windows.recent === null) {
       direction = 'steady because there are not enough earlier readings to compare';
       relation = 'the earlier direction is not available yet';
-    } else if (windows.recent > windows.previous) {
+    } else if (directionResult === 'up') {
       direction = 'up';
       relation = Math.abs(windows.recent - baseline) > Math.abs(windows.previous - baseline)
         ? 'worsening by moving farther from baseline'
         : 'improving by moving closer to baseline';
-    } else if (windows.recent < windows.previous) {
+    } else if (directionResult === 'down') {
       direction = 'down';
       relation = Math.abs(windows.recent - baseline) > Math.abs(windows.previous - baseline)
         ? 'worsening by moving farther from baseline'
