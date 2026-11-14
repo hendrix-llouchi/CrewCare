@@ -1,61 +1,142 @@
-// data.js — PLACEHOLDER — Henry's backend, replace with your own code.
-// This file is a thin stub: just enough sample data for the frontend to demo.
-// Henry is building the real backend himself and will replace this file.
-//
-// SIMULATED DATA, DEMO ONLY. All crew readings are made up for the
-// NASA Space Apps 2026 demo. They are NOT real astronaut data.
-// There is no live NASA astronaut feed.
-// Shape (from the Backend PRD, section 3):
-//   astronaut: { id, name, role, story, storyLabel, baseline: {bpSys, bpDia, heartRate, bloodSugar, temp, sleepHours, mood} }
-//   reading:   { astronautId, date, source, bpSys, bpDia, heartRate, bloodSugar, temp, sleepHours, mood, radiationMsvCumulative, eyeChangeUm }
-//   inventory: { id, name, quantity, expiryDate, lowStockAt }
+/* ALL data below is SIMULATED for demo purposes only. It is not real astronaut data. */
 (function () {
   'use strict';
 
-  var ASTRONAUTS = [
-    { id: 'a1', name: 'Crew Member 1', role: 'Commander', story: 'healthy', storyLabel: 'Healthy — steady readings',
-      baseline: { bpSys: 118, bpDia: 76, heartRate: 62, bloodSugar: 5.1, temp: 36.6, sleepHours: 7.8, mood: 8 } },
-    { id: 'a2', name: 'Crew Member 2', role: 'Crew Medical Officer', story: 'sleep-drift', storyLabel: 'Sleep drift — sleeping less night after night',
-      baseline: { bpSys: 116, bpDia: 74, heartRate: 60, bloodSugar: 5.0, temp: 36.6, sleepHours: 7.6, mood: 8 } },
-    { id: 'a3', name: 'Crew Member 3', role: 'Mission Specialist', story: 'bp-rise', storyLabel: 'Rising blood pressure — climbing over 30 days',
-      baseline: { bpSys: 118, bpDia: 76, heartRate: 64, bloodSugar: 5.2, temp: 36.7, sleepHours: 7.5, mood: 8 } },
-    { id: 'a4', name: 'Crew Member 4', role: 'Flight Engineer', story: 'emergency', storyLabel: 'Becomes the chest-pain emergency in the demo',
-      baseline: { bpSys: 120, bpDia: 78, heartRate: 64, bloodSugar: 5.3, temp: 36.6, sleepHours: 7.7, mood: 8 } }
+  var astronauts = [
+    {
+      id: 'a1',
+      name: 'Maya Okafor',
+      role: 'Commander',
+      story: 'healthy',
+      storyLabel: 'healthy and steady',
+      baseline: {
+        bpSys: 118,
+        bpDia: 76,
+        heartRate: 64,
+        bloodSugar: 5.1,
+        temp: 36.7,
+        sleepHours: 7.5,
+        mood: 8
+      }
+    },
+    {
+      id: 'a2',
+      name: 'Elias Varga',
+      role: 'Crew Medical Officer',
+      story: 'sleep-drift',
+      storyLabel: 'sleep drifting down night after night',
+      baseline: {
+        bpSys: 121,
+        bpDia: 78,
+        heartRate: 62,
+        bloodSugar: 5.0,
+        temp: 36.6,
+        sleepHours: 8.0,
+        mood: 8
+      }
+    },
+    {
+      id: 'a3',
+      name: 'Nia Mensah',
+      role: 'Mission Specialist',
+      story: 'bp-rise',
+      storyLabel: 'blood pressure rising over 30 days',
+      baseline: {
+        bpSys: 116,
+        bpDia: 74,
+        heartRate: 66,
+        bloodSugar: 5.2,
+        temp: 36.8,
+        sleepHours: 7.2,
+        mood: 7
+      }
+    },
+    {
+      id: 'a4',
+      name: 'Jonas Lindberg',
+      role: 'Flight Engineer',
+      story: 'emergency',
+      storyLabel: 'becomes the chest-pain emergency in the demo',
+      baseline: {
+        bpSys: 120,
+        bpDia: 77,
+        heartRate: 65,
+        bloodSugar: 5.1,
+        temp: 36.7,
+        sleepHours: 7.4,
+        mood: 8
+      }
+    }
   ];
 
-  // Sample 30-day readings, 2026-10-16 to 2026-11-14, built from each baseline
-  // with a small daily drift so each story shows up. Replace with Henry's real data.
-  function buildReadings() {
-    var out = [];
-    var start = new Date(2026, 9, 16); // 2026-10-16
-    ASTRONAUTS.forEach(function (a) {
-      var b = a.baseline;
-      for (var i = 0; i < 30; i++) {
-        var d = new Date(start.getTime() + i * 86400000);
-        var r = {
-          astronautId: a.id, date: d.toISOString().slice(0, 10), source: 'simulated',
-          bpSys: b.bpSys, bpDia: b.bpDia, heartRate: b.heartRate,
-          bloodSugar: b.bloodSugar, temp: b.temp, sleepHours: b.sleepHours, mood: b.mood,
-          radiationMsvCumulative: Math.round((110 + i * 1.0) * 10) / 10,
-          eyeChangeUm: 8
-        };
-        if (a.id === 'a2') { r.sleepHours = Math.round((b.sleepHours - i * 0.05) * 10) / 10; r.mood = Math.max(6, Math.round(b.mood - i * 0.03)); r.heartRate = b.heartRate + Math.round(i * 0.15); }
-        if (a.id === 'a3') { r.bpSys = Math.round(b.bpSys + i * 0.48); r.bpDia = Math.round(b.bpDia + i * 0.2); }
-        if (a.id === 'a4') { r.bpSys = Math.round(b.bpSys + i * 0.85); r.bpDia = Math.round(b.bpDia + i * 0.35); r.heartRate = Math.round(b.heartRate + i * 0.75); r.sleepHours = Math.round((b.sleepHours - i * 0.06) * 10) / 10; r.mood = Math.max(5, Math.round(b.mood - i * 0.1)); r.eyeChangeUm = Math.round(10 + i * 0.38); }
-        out.push(r);
+  var readings = [];
+  var startDate = new Date(Date.UTC(2026, 9, 16));
+
+  for (var day = 0; day < 30; day += 1) {
+    var date = new Date(startDate.getTime() + day * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
+
+    for (var crewIndex = 0; crewIndex < astronauts.length; crewIndex += 1) {
+      var astronaut = astronauts[crewIndex];
+      var reading = {
+        astronautId: astronaut.id,
+        date: date,
+        source: 'simulated',
+        bpSys: astronaut.baseline.bpSys,
+        bpDia: astronaut.baseline.bpDia,
+        heartRate: astronaut.baseline.heartRate,
+        bloodSugar: astronaut.baseline.bloodSugar,
+        temp: astronaut.baseline.temp,
+        sleepHours: astronaut.baseline.sleepHours,
+        mood: astronaut.baseline.mood,
+        radiationMsvCumulative: 110 + day,
+        eyeChangeUm: 10
+      };
+
+      if (astronaut.id === 'a1') {
+        reading.bpSys += [0, 1, -1, 2, -2, 1, 0][day % 7];
+        reading.bpDia += [0, 1, -1, 0, 1, -1, 0][day % 7];
+        reading.heartRate += [0, 1, -1, 2, -2, 1, 0][day % 7];
+        reading.bloodSugar += [0, 0.1, -0.1, 0, 0.1, -0.1, 0][day % 7];
+        reading.temp += [0, 0.1, 0, -0.1, 0, 0.1, 0][day % 7];
+        reading.sleepHours += [0, 0.2, -0.1, 0.1, -0.2, 0.1, 0][day % 7];
+        reading.mood = [8, 8, 9, 8, 7, 8, 8][day % 7];
+        reading.eyeChangeUm = 10 + (day % 5) * 0.1;
+      } else if (astronaut.id === 'a2') {
+        reading.sleepHours = 8 - day * 0.08;
+        reading.mood = Math.max(5, 8 - Math.floor(day / 8));
+        reading.heartRate = 62 + Math.floor(day / 5);
+        reading.eyeChangeUm = 10 + day * 0.15;
+      } else if (astronaut.id === 'a3') {
+        reading.bpSys = 116 + day;
+        reading.bpDia = 74 + Math.round(day * 0.55);
+        reading.eyeChangeUm = 10 + day * 0.2;
+      } else if (astronaut.id === 'a4') {
+        reading.bpSys = 120 + day;
+        reading.bpDia = 77 + Math.round(day * 0.55);
+        reading.heartRate = 65 + Math.floor(day * 0.32);
+        reading.sleepHours = 7.4 - day * 0.06;
+        reading.mood = Math.max(4, 8 - Math.floor(day / 7));
+        reading.eyeChangeUm = 10 + day * (11 / 29);
       }
-    });
-    return out;
+
+      readings.push(reading);
+    }
   }
 
-  // Sample inventory. One item expires soon, one is low stock — replace with Henry's list.
-  var INVENTORY = [
-    { id: 'inv1', name: 'Paracetamol 500 mg tablets', quantity: 48, expiryDate: '2027-06-30', lowStockAt: 10 },
-    { id: 'inv2', name: 'Ibuprofen 200 mg tablets', quantity: 6, expiryDate: '2027-03-15', lowStockAt: 10 },
-    { id: 'inv3', name: 'Oral rehydration salts (sachets)', quantity: 24, expiryDate: '2026-11-28', lowStockAt: 5 },
-    { id: 'inv4', name: 'Adhesive dressings (box)', quantity: 3, expiryDate: '2027-01-20', lowStockAt: 5 },
-    { id: 'inv5', name: 'Pulse oximeter', quantity: 2, expiryDate: '2028-01-01', lowStockAt: 1 }
+  var inventory = [
+    { id: 'i1', name: 'First-aid kits', quantity: 8, expiryDate: '2027-06-30', lowStockAt: 3 },
+    { id: 'i2', name: 'Blood pressure cuffs', quantity: 4, expiryDate: '2028-03-15', lowStockAt: 2 },
+    { id: 'i3', name: 'Pain relief tablets', quantity: 2, expiryDate: '2027-01-12', lowStockAt: 5 },
+    { id: 'i4', name: 'Sterile dressings', quantity: 12, expiryDate: '2027-08-20', lowStockAt: 4 },
+    { id: 'i5', name: 'Saline solution', quantity: 6, expiryDate: '2026-12-05', lowStockAt: 2 },
+    { id: 'i6', name: 'Pulse oximeter sensors', quantity: 10, expiryDate: '2028-01-31', lowStockAt: 3 }
   ];
 
-  window.CREWCARE_DATA = { astronauts: ASTRONAUTS, readings: buildReadings(), inventory: INVENTORY };
+  window.CREWCARE_DATA = {
+    astronauts: astronauts,
+    readings: readings,
+    inventory: inventory
+  };
 })();
