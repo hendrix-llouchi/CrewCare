@@ -277,3 +277,17 @@ test('unknown message environment defaults to Mars', () => {
   assert.equal(message.delayMinutes, 22);
   assert.equal(message.demoSeconds, 30);
 });
+
+test('same-millisecond messages stay oldest-first if stored in reverse order', () => {
+  const sandbox = loadScripts(['queue.js']);
+  const queue = sandbox.window.CrewCareQueue;
+  const first = queue.queueMessage('First status', 'a1', 'Mars');
+  const second = queue.queueMessage('Second status', 'a2', 'Mars');
+  const outbox = JSON.parse(sandbox.localStorage.getItem('crewcare.outbox.v1'));
+
+  outbox.forEach((message) => { message.createdAt = '2026-11-14T12:00:00.000Z'; });
+  outbox.reverse();
+  sandbox.localStorage.setItem('crewcare.outbox.v1', JSON.stringify(outbox));
+
+  assert.deepEqual(Array.from(queue.tick(), (message) => message.id), [first.id, second.id]);
+});

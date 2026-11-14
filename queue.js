@@ -96,7 +96,16 @@
     return list.sort(function (left, right) {
       var leftTime = Date.parse(left.createdAt) || 0;
       var rightTime = Date.parse(right.createdAt) || 0;
-      return leftTime - rightTime;
+      if (leftTime !== rightTime) return leftTime - rightTime;
+
+      // IDs end in a monotonically increasing sequence, which preserves order
+      // when messages were created during the same millisecond.
+      var leftSequence = Number((String(left.id).match(/-(\d+)$/) || [])[1]);
+      var rightSequence = Number((String(right.id).match(/-(\d+)$/) || [])[1]);
+      if (Number.isFinite(leftSequence) && Number.isFinite(rightSequence)) {
+        return leftSequence - rightSequence;
+      }
+      return String(left.id).localeCompare(String(right.id));
     });
   }
 
