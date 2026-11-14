@@ -291,3 +291,88 @@ test('same-millisecond messages stay oldest-first if stored in reverse order', (
 
   assert.deepEqual(Array.from(queue.tick(), (message) => message.id), [first.id, second.id]);
 });
+
+test('triage ignores invalid option indexes and leaves the current step unchanged', () => {
+  const triage = loadScripts(['triage.js']).window.CrewCareTriage;
+
+  for (const invalidIndex of [-1, 99, 1.5]) {
+    triage.startTriage();
+    const before = triage.getCurrent();
+    const after = triage.answerTriage(invalidIndex);
+
+    assert.equal(after.type, 'step');
+    assert.equal(after.step.id, before.step.id);
+    assert.equal(triage.getCurrent().step.id, before.step.id);
+  }
+});
+
+test('triage stays at its outcome when answered after the tree ends', () => {
+  const triage = loadScripts(['triage.js']).window.CrewCareTriage;
+  triage.startTriage();
+  triage.answerTriage(0);
+  triage.answerTriage(0);
+  triage.answerTriage(0);
+  const outcome = triage.answerTriage(0);
+
+  assert.equal(outcome.type, 'outcome');
+  assert.equal(outcome.outcome.level, 'red');
+  const afterAnswer = triage.answerTriage(0);
+  assert.equal(afterAnswer.type, 'outcome');
+  assert.strictEqual(afterAnswer.outcome, outcome.outcome);
+});
+
+test('every triage option path ends at a red or amber outcome', () => {
+  const triage = loadScripts(['triage.js']).window.CrewCareTriage;
+  const paths = [];
+
+  function collectPaths(stepId, answers) {
+    const step = triage.STEPS.find((entry) => entry.id === stepId);
+    assert.ok(step, `missing step ${stepId}`);
+    step.options.forEach((option, index) => {
+      const nextAnswers = [...answers, index];
+      if (triage.OUTCOMES[option.next]) paths.push(nextAnswers);
+      else collectPaths(option.next, nextAnswers);
+    });
+  }
+
+  collectPaths('responsive', []);
+  assert.ok(paths.length > 0);
+
+  for (const answers of paths) {
+    triage.resetTriage();
+    let result = triage.startTriage();
+    for (const answer of answers) result = triage.answerTriage(answer);
+    assert.equal(result.type, 'outcome');
+    assert.ok(['red', 'amber'].includes(result.outcome.level));
+  }
+});
+
+test('not sure about breathing goes to the red not-breathing outcome', () => {
+  const triage = loadScripts(['triage.js']).window.CrewCareTriage;
+  triage.startTriage();
+  triage.answerTriage(0);
+  const breathing = triage.getCurrent().step;
+  const unsureIndex = breathing.options.findIndex((option) => option.label.includes('Not sure'));
+  const result = triage.answerTriage(unsureIndex);
+
+  assert.equal(result.type, 'outcome');
+  assert.equal(result.outcome.level, 'red');
+  assert.strictEqual(result.outcome, triage.OUTCOMES['outcome-red-notbreathing']);
+});
+
+test('starting triage again during a run restarts at responsiveness', () => {
+  const triage = loadScripts(['triage.js']).window.CrewCareTriage;
+  triage.startTriage();
+  triage.answerTriage(0);
+  triage.answerTriage(0);
+
+  const restarted = triage.startTriage();
+  assert.equal(restarted.type, 'step');
+  assert.equal(restarted.step.id, 'responsive');
+  assert.equal(triage.answerTriage(0).step.id, 'breathing');
+});
+
+test('triage file avoids diagnosis terms in its steps, outcomes, and messages', () => {
+  const source = fs.readFileSync(path.join(ROOT, 'triage.js'), 'utf8');
+  assert.doesNotMatch(source, /heart attack|cardiac arrest|stroke/i);
+});
