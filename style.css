@@ -1,0 +1,77 @@
+/* CrewCare — mobile-first, plain, readable. Status is always colour + word + arrow, never colour alone. */
+* { box-sizing: border-box; }
+html { font-size: 17px; }
+body { margin: 0; font-family: system-ui, -apple-system, Arial, sans-serif; background: #f4f4f4; color: #111; line-height: 1.5; }
+header { background: #111; color: #fff; padding: 12px 16px; position: sticky; top: 0; z-index: 10; }
+header h1 { margin: 0; font-size: 1.4rem; }
+header p { margin: 2px 0 0; font-size: 0.85rem; color: #ddd; }
+main { max-width: 720px; margin: 0 auto; padding: 12px 12px 90px; }
+section.screen { display: none; }
+section.screen.active { display: block; }
+h2 { font-size: 1.25rem; margin: 12px 0 8px; }
+h3 { font-size: 1.05rem; margin: 14px 0 6px; }
+p { margin: 6px 0; }
+a { color: #0b5cad; }
+
+/* Simulated-data label — on every screen with astronaut data. */
+.sim-label { background: #fff3bf; border: 1px solid #b58900; color: #5c4300; padding: 8px 10px; border-radius: 6px; font-weight: 700; margin: 8px 0; }
+.offline-note { background: #e6f4ea; border: 1px solid #2e7d32; color: #1b5e20; padding: 6px 10px; border-radius: 6px; margin: 8px 0; font-size: 0.9rem; }
+.banner { background: #e8f0fe; border: 1px solid #0b5cad; padding: 8px 10px; border-radius: 6px; margin: 8px 0; }
+
+/* Status: colour + word + arrow. */
+.status { display: inline-block; font-weight: 700; padding: 4px 10px; border-radius: 20px; border: 2px solid; }
+.status-green { color: #145a1e; background: #dcf2de; border-color: #2e7d32; }
+.status-amber { color: #6d4c00; background: #fff0c2; border-color: #b58900; }
+.status-red { color: #7a0d0d; background: #ffd9d9; border-color: #b71c1c; }
+
+/* Crew cards */
+.crew-grid { display: grid; gap: 12px; }
+@media (min-width: 560px) { .crew-grid { grid-template-columns: 1fr 1fr; } }
+.card { background: #fff; border: 1px solid #ccc; border-radius: 10px; padding: 14px; cursor: pointer; text-align: left; width: 100%; font-size: 1rem; }
+.card:hover, .card:focus { border-color: #111; outline: 2px solid #0b5cad; }
+.card h3 { margin: 0 0 4px; font-size: 1.1rem; }
+.card .role { color: #555; margin: 0 0 8px; }
+
+/* Body dashboard */
+.body-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.body-part { background: #fff; border: 2px solid #999; border-radius: 10px; padding: 14px 8px; min-height: 64px; font-size: 1rem; cursor: pointer; }
+.body-part[aria-pressed="true"] { border-color: #0b5cad; background: #e8f0fe; }
+
+/* Forms */
+label { display: block; font-weight: 700; margin: 12px 0 4px; }
+input, select, textarea { width: 100%; padding: 12px; font-size: 1rem; border: 2px solid #666; border-radius: 8px; background: #fff; }
+input:focus, select:focus, textarea:focus { outline: 3px solid #0b5cad; border-color: #0b5cad; }
+.field-error { color: #7a0d0d; font-weight: 700; margin: 2px 0 0; }
+.help { font-size: 0.9rem; color: #444; margin: 2px 0 0; }
+button { font-size: 1rem; padding: 12px 18px; border-radius: 8px; border: 2px solid #111; background: #111; color: #fff; cursor: pointer; min-height: 48px; }
+button.secondary { background: #fff; color: #111; }
+button.danger { background: #b71c1c; border-color: #b71c1c; }
+button.big { width: 100%; font-size: 1.15rem; min-height: 56px; margin: 8px 0; }
+button:disabled { opacity: 0.5; }
+
+/* Bottom navigation */
+nav.bottom { position: fixed; left: 0; right: 0; bottom: 0; background: #fff; border-top: 2px solid #111; display: flex; z-index: 10; }
+nav.bottom button { flex: 1; background: #fff; color: #111; border: none; border-radius: 0; padding: 12px 4px; font-size: 0.95rem; min-height: 56px; }
+nav.bottom button.active { background: #111; color: #fff; }
+.emergency-fab { position: fixed; right: 12px; bottom: 70px; z-index: 11; background: #b71c1c; border-color: #b71c1c; border-radius: 30px; font-weight: 700; }
+
+/* Triage */
+.triage-step { background: #fff; border: 2px solid #111; border-radius: 10px; padding: 16px; margin: 12px 0; }
+.triage-step .step-count { font-weight: 700; color: #555; }
+.triage-step p.question { font-size: 1.25rem; font-weight: 700; }
+.outcome { border-width: 3px; }
+
+/* Lists, tables, charts */
+ul { padding-left: 20px; }
+table { width: 100%; border-collapse: collapse; background: #fff; margin: 8px 0; }
+th, td { border: 1px solid #ccc; padding: 8px; text-align: left; font-size: 0.95rem; }
+th { background: #eee; }
+.chart-box { background: #fff; border: 1px solid #ccc; border-radius: 10px; padding: 10px; margin: 12px 0; }
+.chart-box canvas { width: 100%; max-height: 220px; }
+.caption { font-size: 0.95rem; color: #333; font-style: italic; }
+.flag { font-weight: 700; color: #7a0d0d; }
+.env-switch { display: flex; gap: 8px; margin: 8px 0; }
+.env-switch button { flex: 1; }
+.env-switch button[aria-pressed="true"] { background: #0b5cad; border-color: #0b5cad; }
+.queue-item { background: #fff; border: 1px solid #ccc; border-radius: 8px; padding: 10px; margin: 8px 0; }
+footer { max-width: 720px; margin: 0 auto; padding: 0 12px 90px; font-size: 0.85rem; color: #555; }

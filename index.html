@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CrewCare — Astronaut Health Companion</title>
+<meta name="description" content="CrewCare — offline-first health companion for astronauts on Mars missions. NASA Space Apps Challenge 2026.">
+<link rel="stylesheet" href="./style.css">
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#111111">
+</head>
+<body>
+<header>
+  <h1>CrewCare</h1>
+  <p>Offline-first health companion for a Mars crew. For the Crew Medical Officer — a crewmate, not a doctor.</p>
+  <div class="env-switch" role="group" aria-label="Environment">
+    <button type="button" data-env="ISS" aria-pressed="false">ISS</button>
+    <button type="button" data-env="Moon" aria-pressed="false">Moon</button>
+    <button type="button" data-env="Mars" aria-pressed="true">Mars</button>
+  </div>
+  <p id="env-note">Mars: 20–24 minutes one way. No evacuation, no resupply. The app decides locally.</p>
+  <button type="button" id="earth-flip">Earth remote-clinic mode: off</button>
+</header>
+
+<main>
+  <p class="offline-note" id="offline-note">Offline — saving on this device. Everything works with Wi-Fi off after the first load.</p>
+  <div class="banner" id="earth-banner" hidden>Earth remote-clinic mode: the same tool, for a remote clinic with no doctor nearby. Same checks, same guidance, same offline record.</div>
+
+  <!-- Crew dashboard -->
+  <section class="screen active" id="screen-crew" aria-label="Crew dashboard">
+    <div class="sim-label">Simulated data — demo only. Not real astronaut data.</div>
+    <h2>Crew dashboard — 4 astronauts on the way to Mars</h2>
+    <p>Status is colour + word + arrow, so nothing depends on colour alone. Tap a crewmate to open their body dashboard.</p>
+    <div class="crew-grid" id="crew-grid"></div>
+    <h3>How the demo runs (2 minutes)</h3>
+    <ol>
+      <li>One astronaut is amber — open them and see heart rate and sleep drifting from their own baseline.</li>
+      <li>They get chest pain — run <strong>Emergency</strong> triage to the red outcome.</li>
+      <li>Switch to Mars, send a message to Earth, watch the countdown. The app does not wait.</li>
+      <li>Turn Wi-Fi off. Keep using the app.</li>
+    </ol>
+    <p><strong>Built for Mars. Works where there is no doctor.</strong></p>
+  </section>
+
+  <!-- Astronaut detail / body dashboard -->
+  <section class="screen" id="screen-detail" aria-label="Astronaut detail">
+    <div class="sim-label">Simulated data — demo only. Not real astronaut data.</div>
+    <button type="button" class="secondary" data-nav="crew">← Back to crew</button>
+    <h2 id="detail-name">Astronaut</h2>
+    <p id="detail-story"></p>
+    <p>Overall status: <span id="detail-status"></span> &nbsp; Readiness: <strong id="detail-readiness"></strong> / 100</p>
+    <h3>Body dashboard — tap a part</h3>
+    <div class="body-grid" id="body-grid"></div>
+    <div id="body-info"></div>
+    <h3>Trend chart — 30 days</h3>
+    <label for="chart-indicator">Indicator</label>
+    <select id="chart-indicator">
+      <option value="heartRate">Heart rate (bpm)</option>
+      <option value="bpSys">Blood pressure, systolic (mmHg)</option>
+      <option value="sleepHours">Sleep (hours)</option>
+      <option value="bloodSugar">Blood sugar (mmol/L)</option>
+      <option value="temp">Body temperature (°C)</option>
+      <option value="mood">Mood (1–10)</option>
+    </select>
+    <div class="chart-box"><canvas id="detail-chart" height="200"></canvas></div>
+    <p class="caption" id="detail-caption"></p>
+    <p class="help">Alert bands are team-defined demo values — not NASA medical limits. The only published threshold in this app is the SANS eye threshold: retinal thickening +20 micrometres is an early sign, +55 micrometres is concerning.</p>
+    <h3>Radiation and sleep watch</h3>
+    <p id="detail-radiation"></p>
+    <p id="detail-sleep"></p>
+    <h3>NASA evidence (OSDR) — evidence, not a live feed</h3>
+    <div id="detail-evidence"></div>
+  </section>
+
+  <!-- Check-in -->
+  <section class="screen" id="screen-checkin" aria-label="Daily check-in">
+    <div class="sim-label">Simulated data — demo only. New readings you enter are saved on this device only.</div>
+    <h2>Daily check-in — the 6 indicators</h2>
+    <p>Enter today’s readings for one astronaut. Missing means “not measured”, never zero. Saved on this device, no internet needed.</p>
+    <form id="checkin-form">
+      <label for="ci-astronaut">Astronaut</label>
+      <select id="ci-astronaut"></select>
+      <label for="ci-date">Date</label>
+      <input type="date" id="ci-date" value="2026-11-14">
+      <label for="ci-bpSys">Blood pressure — systolic (mmHg)</label>
+      <input type="number" id="ci-bpSys" min="60" max="250" placeholder="e.g. 120">
+      <p class="help"><button type="button" class="secondary" data-guide="bpSys">How to take it</button></p>
+      <label for="ci-bpDia">Blood pressure — diastolic (mmHg)</label>
+      <input type="number" id="ci-bpDia" min="30" max="150" placeholder="e.g. 80">
+      <label for="ci-heartRate">Heart rate (bpm)</label>
+      <input type="number" id="ci-heartRate" min="30" max="220" placeholder="e.g. 64">
+      <p class="help"><button type="button" class="secondary" data-guide="heartRate">How to take it</button></p>
+      <label for="ci-bloodSugar">Blood sugar (mmol/L)</label>
+      <input type="number" step="0.1" id="ci-bloodSugar" min="1" max="30" placeholder="e.g. 5.3">
+      <p class="help"><button type="button" class="secondary" data-guide="bloodSugar">How to take it</button></p>
+      <label for="ci-temp">Body temperature (°C)</label>
+      <input type="number" step="0.1" id="ci-temp" min="32" max="43" placeholder="e.g. 36.6">
+      <p class="help"><button type="button" class="secondary" data-guide="temp">How to take it</button></p>
+      <label for="ci-sleepHours">Sleep last night (hours)</label>
+      <input type="number" step="0.1" id="ci-sleepHours" min="0" max="16" placeholder="e.g. 7.5">
+      <p class="help"><button type="button" class="secondary" data-guide="sleepHours">How to take it</button></p>
+      <label for="ci-mood">Mood (1–10)</label>
+      <input type="number" id="ci-mood" min="1" max="10" placeholder="e.g. 8">
+      <p class="help"><button type="button" class="secondary" data-guide="mood">How to take it</button></p>
+      <p class="field-error" id="checkin-errors"></p>
+      <button type="submit" class="big">Save check-in</button>
+    </form>
+    <p id="checkin-result"></p>
+  </section>
+
+  <!-- Charts -->
+  <section class="screen" id="screen-charts" aria-label="Charts">
+    <div class="sim-label">Simulated data — demo only. Not real astronaut data.</div>
+    <h2>Charts — 30-day trends</h2>
+    <label for="charts-astronaut">Astronaut</label>
+    <select id="charts-astronaut"></select>
+    <div id="charts-list"></div>
+    <p class="help">Each chart shows the astronaut’s own baseline as a flat line. Alert bands are team-defined demo values — not NASA medical limits.</p>
+  </section>
+
+  <!-- Emergency triage -->
+  <section class="screen" id="screen-triage" aria-label="Emergency triage">
+    <h2>Emergency triage — chest pain</h2>
+    <p><strong>This app does not diagnose.</strong> It guides a non-doctor through checks and next steps, step by step. If someone collapses, call the rest of the crew for help first.</p>
+    <div id="triage-box"></div>
+    <button type="button" class="secondary" id="triage-restart">Restart triage</button>
+  </section>
+
+  <!-- Guidance -->
+  <section class="screen" id="screen-guidance" aria-label="Guidance">
+    <h2>Just-in-time guidance — how to take each measurement</h2>
+    <label for="guide-indicator">Measurement</label>
+    <select id="guide-indicator">
+      <option value="bpSys">Blood pressure</option>
+      <option value="heartRate">Heart rate</option>
+      <option value="bloodSugar">Blood sugar</option>
+      <option value="temp">Body temperature</option>
+      <option value="sleepHours">Sleep</option>
+      <option value="mood">Mood</option>
+    </select>
+    <div id="guide-box"></div>
+    <h3>NASA evidence (OSDR) — evidence, not a live feed</h3>
+    <div id="evidence-list"></div>
+  </section>
+
+  <!-- Messages -->
+  <section class="screen" id="screen-messages" aria-label="Messages to Earth">
+    <h2>Messages to Earth — store-and-forward</h2>
+    <p>Messages are saved on this device first, then sent when the delay timer ends. The app never waits for Earth to decide.</p>
+    <p id="mars-demo-note"><strong>Mars demo delay is shortened to 30 seconds</strong> so the demo can finish. Real Mars delay is 20–24 minutes one way.</p>
+    <form id="message-form">
+      <label for="msg-astronaut">About which astronaut? (optional)</label>
+      <select id="msg-astronaut"></select>
+      <label for="msg-text">Message to Earth</label>
+      <textarea id="msg-text" rows="3" placeholder="e.g. Crew Member 4 had chest pain. Resting and monitored on board."></textarea>
+      <button type="submit" class="big">Queue message to Earth</button>
+    </form>
+    <h3>Outbox</h3>
+    <div id="outbox-list"><p>No messages yet.</p></div>
+  </section>
+
+  <!-- Inventory -->
+  <section class="screen" id="screen-inventory" aria-label="Medical inventory">
+    <h2>Medical inventory</h2>
+    <p>What medicine and supplies remain. Flags: expiring soon (within 30 days) or low stock. In Mars mode there is no resupply.</p>
+    <div id="inventory-list"></div>
+  </section>
+
+  <!-- More -->
+  <section class="screen" id="screen-more" aria-label="More">
+    <h2>More</h2>
+    <p><button type="button" data-nav="guidance">Guidance — how to take each measurement</button></p>
+    <p><button type="button" data-nav="messages">Messages to Earth</button></p>
+    <p><button type="button" data-nav="inventory">Medical inventory</button></p>
+    <p><button type="button" data-nav="charts">Charts — 30-day trends</button></p>
+    <p><button type="button" id="reset-demo">Reset demo — clear my entries</button></p>
+    <p id="reset-result"></p>
+    <h3>About this app</h3>
+    <p>CrewCare is an offline-first health companion for a Mars crew. All crew data is simulated and labelled. NASA Open Science Data Repository (OSDR) studies are used as evidence panels, not a live feed. Alert bands are team-defined demo values; the only published threshold is the SANS eye threshold (+20 / +55 micrometres).</p>
+    <p>Demo hosted on Vercel for judging. In flight, the same app runs on the spacecraft’s onboard computer — no cloud connection needed.</p>
+  </section>
+</main>
+
+<button type="button" class="emergency-fab" id="emergency-fab">🚨 Emergency</button>
+
+<nav class="bottom" aria-label="Main navigation">
+  <button type="button" data-nav="crew" class="active">Crew</button>
+  <button type="button" data-nav="checkin">Check-in</button>
+  <button type="button" data-nav="triage">Emergency</button>
+  <button type="button" data-nav="more">More</button>
+</nav>
+
+<footer>
+  <p>CrewCare — NASA Space Apps Challenge 2026. Simulated data, demo only. This app does not diagnose. Alert bands are team-defined demo values, except the published SANS eye threshold (+20 / +55 micrometres).</p>
+</footer>
+
+<script src="./vendor/chart.umd.min.js"></script>
+<script src="./data.js"></script>
+<script src="./trends.js"></script>
+<script src="./store.js"></script>
+<script src="./queue.js"></script>
+<script src="./triage.js"></script>
+<script src="./guidance.js"></script>
+<script src="./app.js"></script>
+</body>
+</html>
