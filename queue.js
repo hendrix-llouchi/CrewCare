@@ -1,15 +1,10 @@
-// queue.js — PLACEHOLDER — Henry's backend, replace with your own code.
-// Thin stub with the agreed function names from the Backend PRD, section 5.3.
-// Store-and-forward message queue: a message is saved locally first, then
-// marked sent only when its delay timer completes. Nothing is lost if the app closes.
-//
-// Delays (PRD 5.3): ISS near-instant (demo: 5 seconds), Moon 1.3 seconds (demo: 5 seconds),
-// Mars 22 minutes in real life. The demo shortens Mars to 30 seconds and MUST label
-// that on screen, so no judge is misled.
+// Mars-delay store-and-forward queue for simulated demo messages.
+// Mars is 22 minutes one way in real life; this demo uses a labelled 30-second timer.
 (function () {
   'use strict';
 
   var OUTBOX_KEY = 'crewcare.outbox.v1';
+  var nextId = 0;
 
   var ENVIRONMENTS = {
     ISS:  { label: 'ISS',  delayMinutes: 0,    demoSeconds: 5,  note: 'Near-instant. Evacuation to Earth possible in hours.' },
@@ -18,38 +13,110 @@
   };
 
   function loadOutbox() {
-    try { return JSON.parse(localStorage.getItem(OUTBOX_KEY) || '[]'); } catch (e) { return []; }
+    try {
+      if (typeof localStorage === 'undefined' || !localStorage) return [];
+      var stored = localStorage.getItem(OUTBOX_KEY);
+      if (!stored) return [];
+      var parsed = JSON.parse(stored);
+      return Array.isArray(parsed) ? parsed.filter(function (message) {
+        return message && typeof message === 'object' && !Array.isArray(message);
+      }) : [];
+    } catch (e) {
+      return [];
+    }
   }
+
   function saveOutbox(list) {
-    try { localStorage.setItem(OUTBOX_KEY, JSON.stringify(list)); } catch (e) {}
+    try {
+      if (typeof localStorage === 'undefined' || !localStorage) return false;
+      localStorage.setItem(OUTBOX_KEY, JSON.stringify(list));
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 
-  // Save a message as pending with a countdown end time. Returns the saved message.
+  function makeId(list) {
+    var id;
+    var exists;
+    do {
+      nextId += 1;
+      id = 'm' + Date.now() + '-' + nextId;
+      exists = list.some(function (message) { return message.id === id; });
+    } while (exists);
+    return id;
+  }
+
+  // Save locally as pending first; the timer only simulates message delivery.
   function queueMessage(text, astronautId, environment) {
-    var env = ENVIRONMENTS[environment] || ENVIRONMENTS.Mars;
-    var msg = {
-      id: 'm' + Date.now(), astronautId: astronautId || null, text: text,
-      environment: env.label, delayMinutes: env.delayMinutes,
-      demoSeconds: env.demoSeconds, status: 'pending',
-      createdAt: new Date().toISOString(), sendAt: Date.now() + env.demoSeconds * 1000, sentAt: null
-    };
+    if (typeof text !== 'string' || text.length > 500 || !text.trim()) return null;
+
+    var safeAstronautId = ['a1', 'a2', 'a3', 'a4'].indexOf(astronautId) !== -1
+      ? astronautId
+      : null;
+    var environmentKey = Object.prototype.hasOwnProperty.call(ENVIRONMENTS, environment)
+      ? environment
+      : 'Mars';
+    var env = ENVIRONMENTS[environmentKey];
+    var trimmedText = text.trim();
     var list = loadOutbox();
-    list.push(msg);
-    saveOutbox(list);
-    return msg;
+    var now = Date.now();
+    var message = {
+      id: makeId(list),
+      astronautId: safeAstronautId,
+      text: trimmedText,
+      environment: env.label,
+      delayMinutes: env.delayMinutes,
+      demoSeconds: env.demoSeconds,
+      status: 'pending',
+      createdAt: new Date(now).toISOString(),
+      sendAt: now + env.demoSeconds * 1000,
+      sentAt: null
+    };
+
+    list.push(message);
+    return saveOutbox(list) ? message : null;
   }
 
-  // Flip any due messages to sent. Call on load and every second while open.
+  // Mark only due pending messages as sent and persist only when something changed.
   function tick() {
-    var list = loadOutbox(), changed = false, now = Date.now();
-    list.forEach(function (m) {
-      if (m.status === 'pending' && now >= m.sendAt) { m.status = 'sent'; m.sentAt = new Date().toISOString(); changed = true; }
+    var list = loadOutbox();
+    var now = Date.now();
+    var changed = false;
+
+    list.forEach(function (message) {
+      if (message.status === 'pending' && typeof message.sendAt === 'number' && now >= message.sendAt) {
+        message.status = 'sent';
+        message.sentAt = new Date(now).toISOString();
+        changed = true;
+      }
     });
+
     if (changed) saveOutbox(list);
-    return list;
+    return list.sort(function (left, right) {
+      var leftTime = Date.parse(left.createdAt) || 0;
+      var rightTime = Date.parse(right.createdAt) || 0;
+      if (leftTime !== rightTime) return leftTime - rightTime;
+
+      // IDs end in a monotonically increasing sequence, which preserves order
+      // when messages were created during the same millisecond.
+      var leftSequence = Number((String(left.id).match(/-(\d+)$/) || [])[1]);
+      var rightSequence = Number((String(right.id).match(/-(\d+)$/) || [])[1]);
+      if (Number.isFinite(leftSequence) && Number.isFinite(rightSequence)) {
+        return leftSequence - rightSequence;
+      }
+      return String(left.id).localeCompare(String(right.id));
+    });
   }
 
-  function listMessages() { return tick(); }
+  function listMessages() {
+    return tick();
+  }
 
-  window.CrewCareQueue = { ENVIRONMENTS: ENVIRONMENTS, queueMessage: queueMessage, listMessages: listMessages, tick: tick };
+  window.CrewCareQueue = {
+    ENVIRONMENTS: ENVIRONMENTS,
+    queueMessage: queueMessage,
+    listMessages: listMessages,
+    tick: tick
+  };
 })();
