@@ -76,6 +76,7 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
   let currentRouteHash = null;
   let previousRouteHash = "#/crew";
   let messagesTimer = null;
+  let triageSendTimer = null;
 
   const routes = {
     "#/crew": { heading: "Crew", section: "crew" },
@@ -1054,6 +1055,13 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
     }
   }
 
+  function clearTriageSendTimer() {
+    if (triageSendTimer !== null) {
+      window.clearInterval(triageSendTimer);
+      triageSendTimer = null;
+    }
+  }
+
   function renderMessagesScreen() {
     destroyCharts();
     const screen = createElement("section", "messages-screen");
@@ -1595,9 +1603,39 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
     const sendStatus = createElement("p", "emergency-send__status");
     sendStatus.setAttribute("role", "status");
     sendStatus.setAttribute("aria-live", "polite");
+    // The outbox flips a message to sent once its delay passes, but this
+    // screen used to keep showing the status written at send time forever.
+    // Re-check the outbox every second until it flips, then stop.
+    function refreshSendStatus() {
+      if (!document.contains(sendStatus)) {
+        clearTriageSendTimer();
+        return;
+      }
+      if (!triageState.queuedMessage) return;
+      var latest = null;
+      try {
+        getOutbox().forEach(function (message) {
+          if (message.id === triageState.queuedMessage.id) latest = message;
+        });
+      } catch (error) {
+        return;
+      }
+      if (!latest) return;
+      if (latest.status === "sent") {
+        sendStatus.textContent = "Sent to Earth.";
+        clearTriageSendTimer();
+      } else {
+        sendStatus.textContent = "Pending in outbox: " + latest.status + ".";
+      }
+    }
+    function startSendStatusTimer() {
+      clearTriageSendTimer();
+      refreshSendStatus();
+      triageSendTimer = window.setInterval(refreshSendStatus, 1000);
+    }
     if (triageState.queuedMessage) {
       sendButton.disabled = true;
-      sendStatus.textContent = "Pending in outbox.";
+      startSendStatusTimer();
     } else {
       sendButton.addEventListener("click", function () {
         try {
@@ -1608,8 +1646,7 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
           return;
         }
         sendButton.disabled = true;
-        sendStatus.textContent =
-          "Pending in outbox: " + triageState.queuedMessage.status + ".";
+        startSendStatusTimer();
       });
     }
 
