@@ -1,5 +1,3 @@
-const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
-
 (function () {
   const app = document.getElementById("app");
   const offlineNote = document.getElementById("offline-note");
@@ -80,6 +78,7 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
 
   const routes = {
     "#/crew": { heading: "Crew", section: "crew" },
+    "#/environment": { heading: "Environment", section: "more" },
     "#/checkin": { heading: "Check-in", section: "checkin" },
     "#/emergency": { heading: "Emergency", section: "emergency" },
     "#/more": { heading: "More", section: "more" },
@@ -174,7 +173,11 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
     const title = createElement("h2", "crew-card__name", member.name);
     const role = createElement("p", "crew-card__role", member.role);
     const story = createElement("p", "crew-card__story", member.storyLabel);
-    const status = createStatusBadge(getStatus(member.id));
+    const memberStatus = getStatus(member.id);
+    if (memberStatus.level === "act" || memberStatus.colour === "red") {
+      card.classList.add("crew-card--urgent");
+    }
+    const status = createStatusBadge(memberStatus);
     const summary = getLatestSummary(member.id);
     const reading = summary
       ? summary.label + ": " + summary.value + " " + summary.unit
@@ -204,11 +207,18 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
     });
     control.querySelector("[data-environment-delay]").textContent =
       "One-way delay: " + details.delayLabel;
+    const explanation = app.querySelector(".environment-screen__explanation");
+    if (explanation) {
+      explanation.textContent = details.name === "Mars"
+        ? "On Mars, the crew never waits for Earth. The Crew Medical Officer acts now; Earth advises when the message lands."
+        : "The selected setting controls how long a queued message takes to reach Earth in the demo.";
+    }
   }
 
-  function renderEnvironmentSwitch(container) {
+  function renderEnvironmentSwitch(container, showTitle) {
     const section = createElement("section", "environment-switch");
     const title = createElement("h2", "environment-switch__title", "Environment");
+    if (showTitle === false) title.classList.add("visually-hidden");
     const group = createElement("div", "environment-switch__options");
     group.setAttribute("role", "group");
     group.setAttribute("aria-label", "Mission environment");
@@ -237,15 +247,34 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
     const heading = createElement("h1", "page-header__title", "Crew");
     heading.tabIndex = -1;
 
-    const header = createElement("header", "home-screen__header");
+    const header = createElement("header", "home-screen__header screen-heading");
+    const crew = getCrew();
+    const rankedCrew = crew.map(function (member) {
+      return { member: member, status: getStatus(member.id) };
+    }).sort(function (left, right) {
+      const rank = { act: 0, warn: 1, watch: 2, ok: 3 };
+      const leftRank = Object.prototype.hasOwnProperty.call(rank, left.status.level) ? rank[left.status.level] : 4;
+      const rightRank = Object.prototype.hasOwnProperty.call(rank, right.status.level) ? rank[right.status.level] : 4;
+      return leftRank - rightRank;
+    });
+    const attentionCount = rankedCrew.filter(function (entry) {
+      return entry.status.level !== "ok";
+    }).length;
+    const emergencyCrew = rankedCrew.find(function (entry) {
+      return entry.member.id === "crew-d" && entry.status.level !== "ok";
+    });
+    const firstAttention = emergencyCrew || rankedCrew.find(function (entry) {
+      return entry.status.level !== "ok";
+    });
+    const attentionWord = { 1: "One", 2: "Two", 3: "Three", 4: "Four" }[attentionCount] || String(attentionCount);
     header.append(
       heading,
-      createElement("p", "home-screen__headline", HOME_HEADLINE),
-      createElement("p", "simulated-label", "Simulated data"),
-      createElement("p", "simulated-label__note", "Alert bands: team-defined demo values.")
+      createElement("p", "crew-summary", attentionCount
+        ? attentionWord + " of four need attention. " + firstAttention.member.name + " first — the rest can wait."
+        : "All four crew members are near their own baselines."),
+      createElement("p", "simulated-label__note", "Simulated demo data · team-defined alert bands.")
     );
 
-    const crew = getCrew();
     const cards = crew.map(createCrewCard);
     const crewGrid = createElement("div", "crew-grid");
     cards.forEach(function (result) {
@@ -253,8 +282,6 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
     });
 
     screen.append(header);
-    renderEnvironmentSwitch(screen);
-
     if (!cards.some(function (result) { return result.hasReading; })) {
       const emptyState = createElement("section", "empty-state crew-empty-state");
       emptyState.setAttribute("aria-labelledby", "crew-empty-title");
@@ -272,6 +299,43 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
     screen.append(crewGrid);
     app.replaceChildren(screen);
     updateEnvironmentDisplay(setEnvironment(getEnvironment()));
+    heading.focus();
+  }
+
+  function renderEnvironmentScreen() {
+    destroyCharts();
+    const screen = createElement("section", "environment-screen screen-heading");
+    const heading = createElement("h1", "page-header__title", "Environment");
+    heading.tabIndex = -1;
+    const intro = createElement("p", "environment-screen__intro", "One switch. One consequence: the delay.");
+    const control = createElement("div", "environment-screen__control");
+    renderEnvironmentSwitch(control, false);
+    const explanation = createElement("p", "environment-screen__explanation");
+    const table = createElement("table", "environment-table");
+    const thead = createElement("thead");
+    const headerRow = createElement("tr");
+    ["Place", "Real one-way delay", "In the demo"].forEach(function (label) {
+      headerRow.append(createElement("th", "", label));
+    });
+    thead.append(headerRow);
+    const tbody = createElement("tbody");
+    [
+      ["ISS", "Near-instant", "5 seconds"],
+      ["Moon", "About 1.3 seconds", "5 seconds"],
+      ["Mars", "About 22 minutes (20 to 24)", "30 seconds"]
+    ].forEach(function (row) {
+      const tr = createElement("tr");
+      row.forEach(function (value) { tr.append(createElement("td", "", value)); });
+      tbody.append(tr);
+    });
+    table.append(thead, tbody);
+    screen.append(heading, intro, control, explanation, table);
+    app.replaceChildren(screen);
+    const environment = getEnvironment();
+    updateEnvironmentDisplay(setEnvironment(environment));
+    explanation.textContent = environment === "Mars"
+      ? "On Mars, the crew never waits for Earth. The Crew Medical Officer acts now; Earth advises when the message lands."
+      : "The selected setting controls how long a queued message takes to reach Earth in the demo.";
     heading.focus();
   }
 
@@ -1286,6 +1350,7 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
     screen.append(heading);
     const links = [
       ["Messages", "#/messages", "Queued messages to Earth and their status."],
+      ["Environment", "#/environment", "Mission setting and communication delay."],
       ["Inventory", "#/inventory", "Medical supplies, expiry dates and low stock."],
       ["Guidance", "#/guidance", "How to take each measurement and why it matters."],
       ["Check-in", "#/checkin", "Record a new health reading for a crew member."],
@@ -1626,12 +1691,24 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
       ["Tell Earth", outcome.tellEarth]
     ];
     const content = createElement("div", "emergency-outcome__sections");
-    sections.forEach(function (entry) {
+    sections.forEach(function (entry, index) {
       const section = createElement("section", "emergency-outcome__section");
-      section.append(
-        createElement("h2", "", entry[0]),
-        createElement("p", "", entry[1] || "TODO(content)")
+      const title = createElement("h2", "");
+      title.append(
+        createElement("span", "emergency-outcome__number", String(index + 1)),
+        document.createTextNode(entry[0])
       );
+      section.append(title);
+      const items = String(entry[1] || "TODO(content)").match(/[^.!?]+[.!?]?/g) || ["TODO(content)"];
+      if (index === 3) {
+        section.append(createElement("p", "", items.join(" ").trim()));
+      } else {
+        const list = createElement("ul", "emergency-outcome__list");
+        items.forEach(function (item) {
+          if (item.trim()) list.append(createElement("li", "", item.trim()));
+        });
+        section.append(list);
+      }
       content.append(section);
     });
 
@@ -1786,6 +1863,11 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
 
     if (routeHash === "#/inventory") {
       renderInventoryScreen();
+      return;
+    }
+
+    if (routeHash === "#/environment") {
+      renderEnvironmentScreen();
       return;
     }
 
