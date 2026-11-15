@@ -36,6 +36,17 @@ All functions are synchronous, run offline, and make no network calls. Temporary
 - Mood option labels are provisional `TODO(content)`: `1 Very low`, `2 Low`, `3 Okay`, `4 Good`, and `5 Very good`.
 - The temporary stand-in stores the submitted record with `qualityOk: true` and an empty quality message. No quality assessment or medical interpretation is implemented by the stand-in.
 
+## Guidance (`data.js`, proposed)
+
+- `guidance` is an object keyed by `bloodPressure`, `heartRate`, `bloodSugar`, `temperature`, `sleep`, and `mood`.
+- Each indicator maps to `{ howTo, whyItMatters, goodReading, ifOff, qualityCheck }`.
+- `howTo` and `ifOff` are ordered arrays of text. `whyItMatters`, `goodReading`, and `qualityCheck` are text strings.
+- Missing copy remains `TODO(content)`. The temporary object in `stubs.js` is only a content-shape stand-in and contains no medical instructions.
+- The temporary stand-in is installed only when no `guidance` object is defined by a logic file loaded before it.
+- The user interface uses ordered lists for `howTo` and `ifOff`, and paragraphs for the other three fields.
+- Routes use `#/guidance/:indicator`, where `:indicator` is one of the six keys above. The systolic and diastolic check-in links both map to `bloodPressure`; sleep maps to `sleep`. A route without an indicator displays the six-link index.
+- Body-system links map heart to `heartRate`, brain and sleep to `sleep`, blood to `bloodPressure`, and mood to `mood`. Systems without a matching indicator link to the guidance index.
+
 ## Status (`trends.js`)
 
 - `getStatus(id)` returns `{ level, levelLabel, colour, trend, word, reason }`.
@@ -62,8 +73,9 @@ All functions are synchronous, run offline, and make no network calls. Temporary
 
 ## Messages and triage (stubs for later screens)
 
-- `queueMessage(text)` returns `{ id, text, environment, createdAt, status: "pending", countdownEnd }`.
-- `getOutbox()` returns an array of the same records.
+- `queueMessage(text)` returns `{ id, text, environment, createdAt, status: "pending", countdownEnd }`. Capture the selected environment when queued. `countdownEnd` is `createdAt` plus that environment's one-way delay: ISS is 0 seconds, Moon is 1.3 seconds, and Mars is 1320 seconds.
+- `getOutbox()` returns an array of the same records, persisted on the device in localStorage under `crewcare.outbox`. Storage reads and writes are wrapped in `try/catch` and failures are logged and surfaced.
+- Once `countdownEnd` is reached, the message status changes to `sent` and is persisted. Expired pending messages are returned as sent on the next `getOutbox()` call, including after reload. The Messages screen sorts newest first and formats the countdown from `countdownEnd`, not from the current environment.
 - `getTriageStep(scenario, stepNumber)` returns `{ question, answers: ["Yes", "No", "Not sure"], stepNumber, totalSteps }`.
 - `answerTriageStep(scenario, stepNumber, answer)` returns the next step or an outcome object.
 - `getTriageOutcome(scenario, answers)` returns `{ level, levelLabel, doNow, checkNext, prepare, tellEarth }`.
@@ -71,7 +83,8 @@ All functions are synchronous, run offline, and make no network calls. Temporary
 
 ## Inventory and evidence (stubs for later screens)
 
-- `getInventory()` returns `{ name, quantity, expiry: "YYYY-MM-DD", lowStockLevel }` records. No inventory records have been supplied.
+- `getInventory()` returns `{ name, quantity, expiry: "YYYY-MM-DD", lowStockLevel }` records. The temporary stand-in supplies six simulated generic records named Item A through Item F, with quantities expressed as item counts and expiry dates relative to the device date. The names, quantities and dates are placeholders marked `TODO(content)` in the Inventory screen.
+- Inventory flags are text, an icon and a status colour: `Expired` for past expiry dates, `Expiring soon` for dates from today through 30 days from today, and `Low stock` when quantity is at or below `lowStockLevel`. The 30-day window is a team-defined demo value. Items with flags appear before unflagged items, with names sorted alphabetically within each group. Mars mode shows the no-resupply notice.
 - `getEvidence(studyId)` returns `{ studyId, title, summary }`. Supported study IDs: `OSD-816`, `OSD-1032`, and `OSD-1040`. Missing titles and summaries are marked `TODO(content)`.
 
 ## Temporary simulated crew card readings

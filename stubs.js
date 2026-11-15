@@ -11,6 +11,24 @@
     Moon: { name: "Moon", delaySeconds: 1.3, delayLabel: "About 1.3 seconds" },
     Mars: { name: "Mars", delaySeconds: 1320, delayLabel: "About 22 minutes (20 to 24)" }
   };
+  function dateOffsetFromToday(offset) {
+    const date = new Date();
+    date.setHours(12, 0, 0, 0);
+    date.setDate(date.getDate() + offset);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return year + "-" + month + "-" + day;
+  }
+
+  const inventory = [
+    { name: "Item A", quantity: 8, expiry: dateOffsetFromToday(120), lowStockLevel: 2 },
+    { name: "Item B", quantity: 3, expiry: dateOffsetFromToday(14), lowStockLevel: 1 },
+    { name: "Item C", quantity: 1, expiry: dateOffsetFromToday(180), lowStockLevel: 2 },
+    { name: "Item D", quantity: 5, expiry: dateOffsetFromToday(-1), lowStockLevel: 2 },
+    { name: "Item E", quantity: 12, expiry: dateOffsetFromToday(90), lowStockLevel: 3 },
+    { name: "Item F", quantity: 4, expiry: dateOffsetFromToday(240), lowStockLevel: 4 }
+  ];
   const crew = [
     { id: "crew-a", name: "Crew member A", role: "Crew member", storyLabel: "Healthy", simulated: true },
     { id: "crew-b", name: "Crew member B", role: "Crew member", storyLabel: "Sleep drift", simulated: true },
@@ -26,6 +44,52 @@
     sleepHours: { label: "Sleep", unit: "hours", base: 7, step: 0.1 },
     mood: { label: "Mood", unit: "score out of 5", base: 3, step: 0.1 }
   };
+  if (typeof guidance === "undefined") {
+    window.guidance = {
+      bloodPressure: {
+        howTo: ["TODO(content)"],
+        whyItMatters: "TODO(content)",
+        goodReading: "TODO(content)",
+        ifOff: ["TODO(content)"],
+        qualityCheck: "TODO(content)"
+      },
+      heartRate: {
+        howTo: ["TODO(content)"],
+        whyItMatters: "TODO(content)",
+        goodReading: "TODO(content)",
+        ifOff: ["TODO(content)"],
+        qualityCheck: "TODO(content)"
+      },
+      bloodSugar: {
+        howTo: ["TODO(content)"],
+        whyItMatters: "TODO(content)",
+        goodReading: "TODO(content)",
+        ifOff: ["TODO(content)"],
+        qualityCheck: "TODO(content)"
+      },
+      temperature: {
+        howTo: ["TODO(content)"],
+        whyItMatters: "TODO(content)",
+        goodReading: "TODO(content)",
+        ifOff: ["TODO(content)"],
+        qualityCheck: "TODO(content)"
+      },
+      sleep: {
+        howTo: ["TODO(content)"],
+        whyItMatters: "TODO(content)",
+        goodReading: "TODO(content)",
+        ifOff: ["TODO(content)"],
+        qualityCheck: "TODO(content)"
+      },
+      mood: {
+        howTo: ["TODO(content)"],
+        whyItMatters: "TODO(content)",
+        goodReading: "TODO(content)",
+        ifOff: ["TODO(content)"],
+        qualityCheck: "TODO(content)"
+      }
+    };
+  }
   // These baselines and daily series are deterministic simulated stand-ins, not thresholds or guidance.
   const latestValues = {
     "crew-a": { heartRate: 62 },
@@ -45,7 +109,6 @@
     "crew-c": { indicator: "bloodPressureSystolic", label: "Blood pressure", value: "138 over 88", unit: "mmHg", date: latestDate },
     "crew-d": { indicator: "heartRate", label: "Heart rate", value: 96, unit: "beats per minute", date: latestDate }
   };
-  const outbox = [];
   const triageAnswers = {};
   let environmentInMemory = "ISS";
   let messageSequence = 0;
@@ -118,6 +181,23 @@
       throw new TypeError("Saved CrewCare readings must be an array.");
     }
     return readings;
+  }
+
+  function readOutbox() {
+    const stored = window.localStorage.getItem("crewcare.outbox");
+    if (!stored) {
+      return [];
+    }
+
+    const messages = JSON.parse(stored);
+    if (!Array.isArray(messages)) {
+      throw new TypeError("Saved CrewCare messages must be an array.");
+    }
+    return messages;
+  }
+
+  function saveOutbox(messages) {
+    window.localStorage.setItem("crewcare.outbox", JSON.stringify(messages));
   }
 
   if (typeof getCrew === "undefined") {
@@ -199,6 +279,19 @@
           return first.date.localeCompare(second.date);
         })
         .slice(-count);
+    };
+  }
+
+  if (typeof getRadiation === "undefined") {
+    window.getRadiation = function (id) {
+      if (getMemberIndex(id) < 0) {
+        return null;
+      }
+      const days = 30;
+      return {
+        cumulativeMsv: Number((days * 1).toFixed(1)),
+        days: days
+      };
     };
   }
 
@@ -341,23 +434,54 @@
       const details = getEnvironmentDetails(environment);
       const createdAt = new Date();
       const message = {
-        id: "message-" + (++messageSequence),
+        id: "message-" + createdAt.getTime() + "-" + (++messageSequence),
         text: String(text),
         environment: environment,
         createdAt: createdAt.toISOString(),
         status: "pending",
         countdownEnd: new Date(createdAt.getTime() + details.delaySeconds * 1000).toISOString()
       };
-      outbox.push(message);
+      let messages;
+      try {
+        messages = readOutbox();
+        messages.push(message);
+        saveOutbox(messages);
+      } catch (error) {
+        console.error("CrewCare could not save the outbox.", error);
+        throw error;
+      }
       return Object.assign({}, message);
     };
   }
 
   if (typeof getOutbox === "undefined") {
     window.getOutbox = function () {
-      return outbox.map(function (message) {
-        return Object.assign({}, message);
-      });
+      let messages;
+      try {
+        messages = readOutbox();
+        let changed = false;
+        const now = Date.now();
+        messages = messages.map(function (message) {
+          const countdownEnd = Date.parse(message.countdownEnd);
+          const status = message.status === "sent" || countdownEnd <= now
+            ? "sent"
+            : "pending";
+          if (status !== message.status) {
+            changed = true;
+            return Object.assign({}, message, { status: status });
+          }
+          return message;
+        });
+        if (changed) {
+          saveOutbox(messages);
+        }
+        return messages.map(function (message) {
+          return Object.assign({}, message);
+        });
+      } catch (error) {
+        console.error("CrewCare could not read the outbox.", error);
+        throw error;
+      }
     };
   }
 
@@ -403,7 +527,9 @@
 
   if (typeof getInventory === "undefined") {
     window.getInventory = function () {
-      return [];
+      return inventory.map(function (item) {
+        return Object.assign({}, item);
+      });
     };
   }
 

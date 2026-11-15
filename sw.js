@@ -1,4 +1,4 @@
-const CACHE_NAME = "crewcare-shell-v5";
+const CACHE_NAME = "crewcare-shell-v9";
 const APP_FILES = [
   "./",
   "./index.html",

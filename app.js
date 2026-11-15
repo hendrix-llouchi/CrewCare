@@ -5,6 +5,12 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
   const offlineNote = document.getElementById("offline-note");
   const themeColor = document.querySelector('meta[name="theme-color"]');
   const environmentNames = ["ISS", "Moon", "Mars"];
+  const environmentDelays = {
+    ISS: "Near-instant",
+    Moon: "About 1.3 seconds",
+    Mars: "About 22 minutes (20 to 24)"
+  };
+  const inventoryExpiryWindowDays = 30;
   // Entry limits: team-defined demo values, entry limits only, Henry to confirm.
   const checkinIndicators = [
     { key: "bloodPressureSystolic", label: "Systolic blood pressure", unit: "mmHg", min: 60, max: 260, minLabel: "60", maxLabel: "260", step: 1 },
@@ -30,6 +36,14 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
   const checkinConfig = {
     mood: { label: "Mood", unit: "score out of 5", min: 1, max: 5, step: 1 }
   };
+  const triageScenario = "chest-pain";
+  const triageState = {
+    stepNumber: 1,
+    totalSteps: null,
+    answers: [],
+    outcome: null,
+    queuedMessage: null
+  };
   const systemDetails = {
     heart: { label: "Heart", indicators: ["heartRate"] },
     lungs: { label: "Lungs", indicators: [] },
@@ -42,9 +56,26 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
     },
     mood: { label: "Mood", indicators: ["mood"] }
   };
+  const guidanceIndicators = [
+    { key: "bloodPressure", label: "Blood pressure" },
+    { key: "heartRate", label: "Heart rate" },
+    { key: "bloodSugar", label: "Blood sugar" },
+    { key: "temperature", label: "Temperature" },
+    { key: "sleep", label: "Sleep" },
+    { key: "mood", label: "Mood" }
+  ];
+  const systemGuidance = {
+    heart: "heartRate",
+    brain: "sleep",
+    blood: "bloodPressure",
+    mood: "mood"
+  };
   const chartInstances = [];
   let activeSystem = "heart";
   let activeCrewId = null;
+  let currentRouteHash = null;
+  let previousRouteHash = "#/crew";
+  let messagesTimer = null;
 
   const routes = {
     "#/crew": { heading: "Crew", section: "crew" },
@@ -73,7 +104,11 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
 
     const guidanceMatch = hash.match(/^#\/guidance\/([^/?]+)$/);
     if (guidanceMatch) {
-      return { heading: "Guidance", section: "more" };
+      return {
+        heading: "Guidance",
+        section: "more",
+        guidanceIndicator: normalizeGuidanceIndicator(guidanceMatch[1])
+      };
     }
 
     if (/^#\/guidance(?:\?.*)?$/.test(hash)) {
@@ -81,6 +116,25 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
     }
 
     return routes[hash] || null;
+  }
+
+  function normalizeGuidanceIndicator(indicator) {
+    const aliases = {
+      bloodPressureSystolic: "bloodPressure",
+      bloodPressureDiastolic: "bloodPressure",
+      sleepHours: "sleep"
+    };
+    const normalized = aliases[indicator] || indicator;
+    return guidanceIndicators.some(function (item) {
+      return item.key === normalized;
+    }) ? normalized : null;
+  }
+
+  function guidanceHref(indicator) {
+    const normalized = normalizeGuidanceIndicator(indicator);
+    return normalized
+      ? "#/guidance/" + encodeURIComponent(normalized)
+      : "#/guidance";
   }
 
   function createElement(tagName, className, text) {
@@ -502,7 +556,7 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
       createElement("p", "system-panel__reason", status.reason),
       createElement("a", "button button--secondary", "Open guidance")
     );
-    panel.lastElementChild.href = "#/guidance?system=" + encodeURIComponent(system);
+    panel.lastElementChild.href = guidanceHref(systemGuidance[system]);
     appendEvidence(panel, system);
 
     const previousPanel = app.querySelector(".system-panel");
@@ -519,6 +573,73 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
       regionLink.setAttribute("aria-current", String(regionLink.dataset.system === system));
     });
     heading.focus();
+  }
+
+  function createRadiationSleepSection(memberId) {
+    const section = createElement("section", "card radiation-sleep");
+    const title = createElement("h2", "", "Radiation and sleep");
+    const simulated = createElement("p", "simulated-label", "Simulated data");
+    const radiationSection = createElement("section", "radiation-sleep__block");
+    const radiationHeading = createElement("h3", "", "Radiation");
+    const radiation = getRadiation(memberId);
+    const radiationReading = createElement("p", "reading");
+    radiationReading.textContent = Number(radiation.cumulativeMsv).toFixed(1) +
+      " mSv (millisieverts) over " + radiation.days + " days";
+    radiationSection.append(
+      radiationHeading,
+      radiationReading,
+      createElement(
+        "p",
+        "radiation-sleep__context",
+        "ISS average is about 1 mSv per day. Context only, not a safety limit."
+      )
+    );
+
+    const sleepSection = createElement("section", "radiation-sleep__block");
+    const sleepHeading = createElement("h3", "", "Sleep");
+    const readings = getReadings(memberId, "sleepHours", 30);
+    const latest = Array.isArray(readings) && readings.length
+      ? readings[readings.length - 1]
+      : null;
+    sleepSection.append(sleepHeading);
+    if (latest) {
+      const hours = Number(latest.value);
+      const scheduledHours = 8.5;
+      const difference = Math.round(Math.abs(hours - scheduledHours) * 10) / 10;
+      const comparison = hours < scheduledHours
+        ? difference.toFixed(1) + " hours below schedule"
+        : hours > scheduledHours
+          ? difference.toFixed(1) + " hours above schedule"
+          : "matching the scheduled hours";
+      sleepSection.append(
+        createElement(
+          "p",
+          "reading",
+          hours.toFixed(1) + " hours slept, " + comparison
+        ),
+        createElement("p", "radiation-sleep__scheduled", "8.5 hours scheduled")
+      );
+      const progress = createElement("progress", "sleep-bar");
+      progress.max = scheduledHours;
+      progress.value = Math.max(0, Math.min(hours, scheduledHours));
+      progress.setAttribute("aria-label", "Sleep compared with scheduled hours");
+      sleepSection.append(progress);
+    } else {
+      sleepSection.append(
+        createElement("p", "radiation-sleep__empty", "No sleep reading available.")
+      );
+    }
+    sleepSection.append(
+      createElement(
+        "p",
+        "radiation-sleep__context",
+        "ISS crews average about 6.1 hours of sleep against 8.5 scheduled."
+      )
+    );
+    section.append(title, simulated, radiationSection, sleepSection);
+
+    // TODO: Add a readiness view after its data contract is defined.
+    return section;
   }
 
   function renderCrewDetail(memberId) {
@@ -557,7 +678,7 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
     );
 
     const bodyFigure = createBodyFigure(memberId);
-    screen.append(header, bodyFigure);
+    screen.append(header, bodyFigure, createRadiationSleepSection(memberId));
     app.replaceChildren(screen);
     openSystemPanel(memberId, activeSystem);
     heading.focus();
@@ -571,7 +692,7 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
 
   function addGuidanceLink(container, indicator) {
     const link = createElement("a", "checkin-field__guidance", "How to take this");
-    link.href = "#/guidance/" + encodeURIComponent(indicator);
+    link.href = guidanceHref(indicator);
     container.append(link);
   }
 
@@ -736,6 +857,419 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
     }
   }
 
+  function appendGuidanceList(container, items) {
+    const list = createElement("ol", "guidance-list");
+    const entries = Array.isArray(items) ? items : ["TODO(content)"];
+    entries.forEach(function (item) {
+      list.append(createElement("li", "", item || "TODO(content)"));
+    });
+    container.append(list);
+  }
+
+  function appendGuidanceParagraph(container, text) {
+    container.append(createElement("p", "", text || "TODO(content)"));
+  }
+
+  function createGuidanceBlock(title) {
+    const block = createElement("section", "card guidance-block");
+    block.append(createElement("h2", "", title));
+    return block;
+  }
+
+  function renderGuidanceIndex(message) {
+    const screen = createElement("section", "guidance-screen");
+    const back = createElement("a", "guidance-back", "Back");
+    back.href = previousRouteHash;
+    const heading = createElement("h1", "page-header__title", "Guidance");
+    heading.tabIndex = -1;
+    const list = createElement("ul", "guidance-index");
+    guidanceIndicators.forEach(function (indicator) {
+      const item = createElement("li", "guidance-index__item");
+      const link = createElement("a", "", indicator.label);
+      link.href = guidanceHref(indicator.key);
+      item.append(link);
+      list.append(item);
+    });
+    screen.append(back, heading);
+    if (message) {
+      screen.append(createElement("p", "guidance-error", message));
+    }
+    screen.append(list);
+    app.replaceChildren(screen);
+    heading.focus();
+  }
+
+  function renderGuidancePage(indicatorKey) {
+    const indicator = guidanceIndicators.find(function (item) {
+      return item.key === indicatorKey;
+    });
+    if (!indicator) {
+      renderGuidanceIndex("This guidance page is unavailable.");
+      return;
+    }
+
+    const guidanceContent = typeof guidance === "undefined"
+      ? window.guidance
+      : guidance;
+    if (!guidanceContent || !guidanceContent[indicator.key]) {
+      renderGuidanceIndex("Guidance content is unavailable.");
+      return;
+    }
+
+    const content = guidanceContent[indicator.key];
+    const screen = createElement("article", "guidance-screen");
+    const back = createElement("a", "guidance-back", "Back");
+    back.href = previousRouteHash;
+    const heading = createElement("h1", "page-header__title", indicator.label);
+    heading.tabIndex = -1;
+
+    const howTo = createGuidanceBlock("How to take it");
+    appendGuidanceList(howTo, content.howTo);
+    const why = createGuidanceBlock("Why it matters");
+    appendGuidanceParagraph(why, content.whyItMatters);
+    const goodReading = createGuidanceBlock("A good reading looks like");
+    appendGuidanceParagraph(goodReading, content.goodReading);
+    const ifOff = createGuidanceBlock("If it is off");
+    appendGuidanceList(ifOff, content.ifOff);
+    const quality = createGuidanceBlock("Quality check");
+    appendGuidanceParagraph(quality, content.qualityCheck);
+
+    screen.append(back, heading, howTo, why, goodReading, ifOff, quality);
+    app.replaceChildren(screen);
+    heading.focus();
+  }
+
+  function renderGuidanceScreen(indicatorKey) {
+    destroyCharts();
+    if (!indicatorKey) {
+      renderGuidanceIndex(null);
+      return;
+    }
+    renderGuidancePage(indicatorKey);
+  }
+
+  function formatCreatedTime(value) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return "TODO(content)";
+    }
+    return new Intl.DateTimeFormat("en", {
+      dateStyle: "full",
+      timeStyle: "long"
+    }).format(date);
+  }
+
+  function createOutboxStatusBadge(status) {
+    const isSent = status === "sent";
+    const badge = createElement(
+      "span",
+      "status-badge status-badge--" + (isSent ? "green" : "amber")
+    );
+    const icon = createElement("span");
+    icon.setAttribute("aria-hidden", "true");
+    icon.innerHTML = window.CrewCareIcons[isSent ? "check" : "clock"];
+    badge.append(icon, createElement("span", "", isSent ? "Sent" : "Pending"));
+    return badge;
+  }
+
+  function formatCountdown(countdownEnd, now) {
+    const seconds = Math.max(0, Math.ceil((Date.parse(countdownEnd) - now) / 1000));
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return minutes + " min " + remainingSeconds + " s remaining";
+  }
+
+  function renderOutboxMessages(list, statusNode) {
+    let messages;
+    try {
+      messages = getOutbox();
+      if (!Array.isArray(messages)) {
+        throw new TypeError("The outbox did not return a message list.");
+      }
+    } catch (error) {
+      console.error("CrewCare could not load messages.", error);
+      statusNode.textContent = "Messages could not be loaded from this device.";
+      list.replaceChildren();
+      return;
+    }
+
+    messages = messages.slice().sort(function (first, second) {
+      return Date.parse(second.createdAt) - Date.parse(first.createdAt);
+    });
+    statusNode.textContent = "";
+    if (!messages.length) {
+      list.replaceChildren(createElement("p", "messages-empty", "No messages yet."));
+      return;
+    }
+
+    const now = Date.now();
+    const cards = messages.map(function (message) {
+      const card = createElement("article", "card message-card");
+      const text = createElement("p", "message-card__text", message.text);
+      const metadata = createElement("dl", "message-card__metadata");
+      const environmentTerm = createElement("dt", "", "Environment");
+      const environmentValue = createElement("dd", "", message.environment);
+      const createdTerm = createElement("dt", "", "Created");
+      const createdValue = createElement("dd", "", formatCreatedTime(message.createdAt));
+      metadata.append(environmentTerm, environmentValue, createdTerm, createdValue);
+      const messageStatus = message.status === "sent" ||
+        Date.parse(message.countdownEnd) <= now
+        ? "sent"
+        : "pending";
+      const status = createOutboxStatusBadge(messageStatus);
+      card.append(text, metadata, status);
+      if (messageStatus === "pending") {
+        const countdown = createElement(
+          "p",
+          "message-card__countdown",
+          formatCountdown(message.countdownEnd, now)
+        );
+        countdown.dataset.countdownEnd = message.countdownEnd;
+        countdown.setAttribute("aria-live", "off");
+        card.append(countdown);
+      }
+      return card;
+    });
+    list.replaceChildren.apply(list, cards);
+  }
+
+  function updateMessagesEnvironment(details) {
+    const environment = details && details.name
+      ? details.name
+      : getEnvironment();
+    const delay = details && details.delayLabel
+      ? details.delayLabel
+      : environmentDelays[environment];
+    const display = app.querySelector("[data-current-environment]");
+    if (display) {
+      display.textContent =
+        "Current environment: " + environment + ". One-way delay: " + delay + ".";
+    }
+  }
+
+  function clearMessagesTimer() {
+    if (messagesTimer !== null) {
+      window.clearInterval(messagesTimer);
+      messagesTimer = null;
+    }
+  }
+
+  function renderMessagesScreen() {
+    destroyCharts();
+    const screen = createElement("section", "messages-screen");
+    const heading = createElement("h1", "page-header__title", "Messages");
+    heading.tabIndex = -1;
+    const environment = createElement("p", "messages-environment");
+    environment.dataset.currentEnvironment = "";
+    const explanation = createElement(
+      "p",
+      "messages-explanation",
+      "Messages are stored on this device and sent when the link allows. The crew does not wait for Earth to act."
+    );
+    const status = createElement("p", "messages-error");
+    status.setAttribute("role", "alert");
+    const list = createElement("div", "messages-list");
+    list.setAttribute("aria-label", "Outbox messages");
+    screen.append(heading, environment, explanation, status, list);
+    app.replaceChildren(screen);
+    updateMessagesEnvironment();
+    renderOutboxMessages(list, status);
+    heading.focus();
+
+    if (list.querySelector("[data-countdown-end]")) {
+      messagesTimer = window.setInterval(function () {
+        if (window.location.hash !== "#/messages") {
+          clearMessagesTimer();
+          return;
+        }
+        renderOutboxMessages(list, status);
+        if (!list.querySelector("[data-countdown-end]")) {
+          clearMessagesTimer();
+        }
+      }, 1000);
+    }
+  }
+
+  function inventoryDateAtUtcMidnight(value) {
+    if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      return null;
+    }
+    const date = new Date(value + "T00:00:00Z");
+    return Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value
+      ? null
+      : date;
+  }
+
+  function inventoryFlags(item, today) {
+    const flags = [];
+    const expiry = inventoryDateAtUtcMidnight(item.expiry);
+    if (expiry) {
+      const daysUntilExpiry = Math.floor((expiry.getTime() - today.getTime()) / 86400000);
+      if (daysUntilExpiry < 0) {
+        flags.push({ label: "Expired", colour: "red", icon: "warning" });
+      } else if (daysUntilExpiry <= inventoryExpiryWindowDays) {
+        flags.push({ label: "Expiring soon", colour: "amber", icon: "clock" });
+      }
+    }
+    if (Number.isFinite(Number(item.quantity)) &&
+        Number.isFinite(Number(item.lowStockLevel)) &&
+        Number(item.quantity) <= Number(item.lowStockLevel)) {
+      flags.push({ label: "Low stock", colour: "amber", icon: "warning" });
+    }
+    return flags;
+  }
+
+  function createInventoryFlag(flag) {
+    const badge = createElement(
+      "span",
+      "inventory-flag inventory-flag--" + flag.colour
+    );
+    const icon = createElement("span");
+    icon.setAttribute("aria-hidden", "true");
+    icon.innerHTML = window.CrewCareIcons[flag.icon];
+    badge.append(icon, createElement("span", "", flag.label));
+    return badge;
+  }
+
+  function formatInventoryExpiry(value) {
+    const date = inventoryDateAtUtcMidnight(value);
+    if (!date) {
+      return "TODO(content)";
+    }
+    return new Intl.DateTimeFormat("en", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      timeZone: "UTC"
+    }).format(date);
+  }
+
+  function inventoryItemCard(item, flags) {
+    const card = createElement("article", "card inventory-card");
+    const heading = createElement("h2", "", item.name || "TODO(content)");
+    const details = createElement("dl", "inventory-card__details");
+    [
+      ["Quantity", String(item.quantity) + (Number(item.quantity) === 1 ? " item" : " items")],
+      ["Expiry", formatInventoryExpiry(item.expiry)]
+    ].forEach(function (entry) {
+      details.append(
+        createElement("dt", "", entry[0]),
+        createElement("dd", "", entry[1])
+      );
+    });
+    const flagList = createElement("ul", "inventory-card__flags");
+    if (flags.length) {
+      flags.forEach(function (flag) {
+        const row = createElement("li");
+        row.append(createInventoryFlag(flag));
+        flagList.append(row);
+      });
+    } else {
+      flagList.append(createElement("li", "inventory-card__clear", "No flags"));
+    }
+    card.append(heading, details, flagList);
+    return card;
+  }
+
+  function renderInventoryList(container, searchText, statusNode) {
+    let items;
+    try {
+      items = getInventory();
+      if (!Array.isArray(items)) {
+        throw new TypeError("The inventory did not return an item list.");
+      }
+    } catch (error) {
+      console.error("CrewCare could not load inventory.", error);
+      statusNode.textContent = "Inventory could not be loaded from this device.";
+      container.replaceChildren();
+      return;
+    }
+
+    const todayDate = new Date();
+    const today = new Date(Date.UTC(
+      todayDate.getFullYear(),
+      todayDate.getMonth(),
+      todayDate.getDate()
+    ));
+    const records = items.map(function (item) {
+      return { item: item, flags: inventoryFlags(item, today) };
+    }).filter(function (record) {
+      return String(record.item.name || "")
+        .toLocaleLowerCase()
+        .includes(searchText.trim().toLocaleLowerCase());
+    }).sort(function (first, second) {
+      const firstFlagged = first.flags.length > 0;
+      const secondFlagged = second.flags.length > 0;
+      if (firstFlagged !== secondFlagged) {
+        return firstFlagged ? -1 : 1;
+      }
+      return String(first.item.name || "")
+        .localeCompare(String(second.item.name || ""), "en");
+    });
+
+    statusNode.textContent = "";
+    if (!records.length) {
+      container.replaceChildren(createElement("p", "inventory-empty", "No items match."));
+      return;
+    }
+    container.replaceChildren.apply(container, records.map(function (record) {
+      return inventoryItemCard(record.item, record.flags);
+    }));
+  }
+
+  function updateInventoryEnvironment() {
+    const notice = app.querySelector("[data-mars-inventory-notice]");
+    if (notice) {
+      notice.hidden = getEnvironment() !== "Mars";
+    }
+  }
+
+  function renderInventoryScreen() {
+    destroyCharts();
+    const screen = createElement("section", "inventory-screen");
+    const heading = createElement("h1", "page-header__title", "Inventory");
+    heading.tabIndex = -1;
+    const notice = createElement(
+      "p",
+      "inventory-mars-notice",
+      "No resupply on this mission. Plan how you use stock."
+    );
+    notice.dataset.marsInventoryNotice = "";
+    notice.setAttribute("role", "note");
+    const note = createElement(
+      "p",
+      "inventory-note",
+      "Simulated inventory. TODO(content): Replace the placeholder items, quantities, and expiry dates."
+    );
+    const searchField = createElement("div", "form-field inventory-search");
+    const label = createElement("label", "", "Search inventory by name");
+    label.htmlFor = "inventory-search";
+    const input = createElement("input");
+    input.id = "inventory-search";
+    input.type = "search";
+    input.autocomplete = "off";
+    input.setAttribute("aria-controls", "inventory-items");
+    const footnote = createElement(
+      "p",
+      "inventory-footnote",
+      "Expiring soon rule: within 30 days, a team-defined demo value."
+    );
+    const error = createElement("p", "inventory-error");
+    error.setAttribute("role", "alert");
+    const list = createElement("div", "inventory-list");
+    list.id = "inventory-items";
+    list.setAttribute("aria-live", "polite");
+    searchField.append(label, input);
+    screen.append(heading, notice, note, searchField, footnote, error, list);
+    app.replaceChildren(screen);
+    updateInventoryEnvironment();
+    renderInventoryList(list, "", error);
+    input.addEventListener("input", function () {
+      renderInventoryList(list, input.value, error);
+    });
+    heading.focus();
+  }
+
   function appendCheckinResults(saveResult) {
     const section = createElement("section", "card checkin-results");
     section.setAttribute("aria-labelledby", "checkin-results-title");
@@ -898,6 +1432,221 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
     heading.focus();
   }
 
+  function triageErrorMessage(error) {
+    console.error("CrewCare could not continue the triage flow.", error);
+    const alert = app.querySelector(".emergency-error");
+    if (alert) {
+      alert.textContent = "This step could not be loaded. Use Back to try again.";
+    }
+  }
+
+  function renderTriageStep(step) {
+    if (!step || !Number.isInteger(step.stepNumber) ||
+        !Number.isInteger(step.totalSteps) || !Array.isArray(step.answers)) {
+      throw new TypeError("The triage step returned an unsupported shape.");
+    }
+
+    triageState.stepNumber = step.stepNumber;
+    triageState.totalSteps = step.totalSteps;
+    triageState.outcome = null;
+    const screen = createElement("section", "emergency-screen");
+    screen.setAttribute("aria-labelledby", "emergency-question");
+    const back = createElement("button", "button button--secondary emergency-back", "Back");
+    back.type = "button";
+    back.addEventListener("click", function () {
+      if (triageState.stepNumber > 1) {
+        triageState.stepNumber -= 1;
+        try {
+          renderTriageStep(getTriageStep(triageScenario, triageState.stepNumber));
+        } catch (error) {
+          triageErrorMessage(error);
+        }
+      } else {
+        window.location.hash = "#/crew";
+      }
+    });
+
+    const heading = createElement("h1", "page-header__title", "Emergency");
+    heading.tabIndex = -1;
+    const counter = createElement(
+      "p",
+      "emergency-step-counter",
+      "Step " + step.stepNumber + " of " + step.totalSteps
+    );
+    const question = createElement(
+      "h2",
+      "emergency-question emergency-action",
+      step.question || "TODO(content)"
+    );
+    question.id = "emergency-question";
+    const choices = createElement("div", "emergency-answers");
+    choices.setAttribute("aria-label", "Answer the triage question");
+    step.answers.forEach(function (answer) {
+      const button = createElement("button", "button button--secondary emergency-answer", answer);
+      button.type = "button";
+      button.addEventListener("click", function () {
+        let response;
+        try {
+          response = answerTriageStep(
+            triageScenario,
+            step.stepNumber,
+            answer
+          );
+        } catch (error) {
+          triageErrorMessage(error);
+          return;
+        }
+
+        triageState.answers[step.stepNumber - 1] = answer;
+        triageState.answers.length = step.stepNumber;
+        if (response && Number.isInteger(response.stepNumber)) {
+          try {
+            renderTriageStep(getTriageStep(triageScenario, response.stepNumber));
+          } catch (error) {
+            triageErrorMessage(error);
+          }
+          return;
+        }
+
+        try {
+          renderTriageOutcome(getTriageOutcome(
+            triageScenario,
+            triageState.answers.slice()
+          ));
+        } catch (error) {
+          triageErrorMessage(error);
+        }
+      });
+      choices.append(button);
+    });
+
+    const error = createElement("p", "emergency-error");
+    error.setAttribute("role", "alert");
+    screen.append(back, heading, counter, question, choices, error);
+    app.replaceChildren(screen);
+    heading.focus();
+  }
+
+  function triageOutcomeColour(outcome) {
+    const level = String(outcome.level || "").toLowerCase();
+    const label = String(outcome.levelLabel || "").toLowerCase();
+    if (label === "act now" || level === "act" || level === "red") {
+      return "red";
+    }
+    if (label === "keep monitoring" || level === "watch" || level === "warn" ||
+        level === "amber") {
+      return "amber";
+    }
+    if (label === "handle on board" || level === "handle on board" ||
+        level === "handle-on-board" || level === "ok" || level === "green") {
+      return "green";
+    }
+    return null;
+  }
+
+  function renderTriageOutcome(outcome) {
+    if (!outcome) {
+      throw new TypeError("The triage outcome is missing.");
+    }
+
+    triageState.outcome = outcome;
+    const screen = createElement("section", "emergency-screen emergency-outcome");
+    screen.setAttribute("aria-labelledby", "emergency-outcome-title");
+    const back = createElement("button", "button button--secondary emergency-back", "Back");
+    back.type = "button";
+    back.addEventListener("click", function () {
+      const previousStep = triageState.totalSteps || triageState.stepNumber;
+      try {
+        renderTriageStep(getTriageStep(triageScenario, previousStep));
+      } catch (error) {
+        triageErrorMessage(error);
+      }
+    });
+    const heading = createElement("h1", "page-header__title", "Emergency outcome");
+    heading.id = "emergency-outcome-title";
+    heading.tabIndex = -1;
+    const outcomeColour = triageOutcomeColour(outcome);
+    const outcomeLabel = outcome.levelLabel || "TODO(content)";
+    const outcomeStatus = outcomeColour
+      ? createStatusBadge({
+        colour: outcomeColour,
+        trend: "steady",
+        word: outcomeLabel
+      })
+      : createElement("p", "emergency-outcome__label", outcomeLabel);
+    const sections = [
+      ["Do now", outcome.doNow],
+      ["Check next", outcome.checkNext],
+      ["Prepare", outcome.prepare],
+      ["Tell Earth", outcome.tellEarth]
+    ];
+    const content = createElement("div", "emergency-outcome__sections");
+    sections.forEach(function (entry) {
+      const section = createElement("section", "emergency-outcome__section");
+      section.append(
+        createElement("h2", "", entry[0]),
+        createElement("p", "", entry[1] || "TODO(content)")
+      );
+      content.append(section);
+    });
+
+    const sendButton = createElement("button", "button button--primary emergency-send", "Send to outbox");
+    sendButton.type = "button";
+    const sendStatus = createElement("p", "emergency-send__status");
+    sendStatus.setAttribute("role", "status");
+    sendStatus.setAttribute("aria-live", "polite");
+    if (triageState.queuedMessage) {
+      sendButton.disabled = true;
+      sendStatus.textContent = "Pending in outbox.";
+    } else {
+      sendButton.addEventListener("click", function () {
+        try {
+          triageState.queuedMessage = queueMessage(String(outcome.tellEarth || "TODO(content)"));
+        } catch (error) {
+          console.error("CrewCare could not add the message to the outbox.", error);
+          sendStatus.textContent = "The message could not be added to the outbox.";
+          return;
+        }
+        sendButton.disabled = true;
+        sendStatus.textContent =
+          "Pending in outbox: " + triageState.queuedMessage.status + ".";
+      });
+    }
+
+    screen.append(back, heading, outcomeStatus, content, sendButton, sendStatus);
+    app.replaceChildren(screen);
+    heading.focus();
+  }
+
+  function renderEmergencyScreen() {
+    destroyCharts();
+    if (triageState.outcome) {
+      renderTriageOutcome(triageState.outcome);
+      return;
+    }
+
+    try {
+      renderTriageStep(getTriageStep(triageScenario, triageState.stepNumber));
+    } catch (error) {
+      const screen = createElement("section", "emergency-screen");
+      const heading = createElement("h1", "page-header__title", "Emergency");
+      heading.tabIndex = -1;
+      const errorText = createElement(
+        "p",
+        "emergency-error",
+        "This step could not be loaded. Try again."
+      );
+      errorText.setAttribute("role", "alert");
+      const retry = createElement("button", "button button--secondary", "Retry");
+      retry.type = "button";
+      retry.addEventListener("click", renderEmergencyScreen);
+      screen.append(heading, errorText, retry);
+      app.replaceChildren(screen);
+      console.error("CrewCare could not load the triage step.", error);
+      heading.focus();
+    }
+  }
+
   function updateChartTheme() {
     const colors = chartColors();
     chartInstances.forEach(function (chart) {
@@ -918,12 +1667,20 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
   }
 
   function renderRoute() {
-    const route = resolveRoute(window.location.hash);
+    const routeHash = window.location.hash;
+    clearMessagesTimer();
+    if (currentRouteHash && !currentRouteHash.startsWith("#/guidance")) {
+      previousRouteHash = currentRouteHash;
+    }
+    currentRouteHash = routeHash;
+    const route = resolveRoute(routeHash);
     if (!route) {
       window.location.hash = "#/crew";
       return;
     }
 
+    const emergencyMode = route.section === "emergency";
+    document.body.classList.toggle("emergency-mode", emergencyMode);
     document.querySelectorAll("[data-nav]").forEach(function (link) {
       const isCurrent = link.dataset.nav === route.section;
       if (isCurrent) {
@@ -940,6 +1697,26 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
 
     if (route.section === "checkin") {
       renderCheckinScreen();
+      return;
+    }
+
+    if (route.heading === "Guidance") {
+      renderGuidanceScreen(route.guidanceIndicator);
+      return;
+    }
+
+    if (routeHash === "#/messages") {
+      renderMessagesScreen();
+      return;
+    }
+
+    if (routeHash === "#/inventory") {
+      renderInventoryScreen();
+      return;
+    }
+
+    if (emergencyMode) {
+      renderEmergencyScreen();
       return;
     }
 
@@ -990,9 +1767,15 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
 
   renderRoute();
   window.addEventListener("hashchange", renderRoute);
-  window.addEventListener("crewcare:environment", function () {
+  window.addEventListener("crewcare:environment", function (event) {
     if (window.location.hash === "#/crew") {
       updateEnvironmentDisplay(setEnvironment(getEnvironment()));
+    }
+    if (window.location.hash === "#/messages") {
+      updateMessagesEnvironment(event.detail);
+    }
+    if (window.location.hash === "#/inventory") {
+      updateInventoryEnvironment();
     }
   });
   window.addEventListener("online", updateOfflineNote);
