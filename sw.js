@@ -1,4 +1,4 @@
-const CACHE_NAME = "crewcare-shell-v14";
+const CACHE_NAME = "crewcare-shell-v15";
 const APP_FILES = [
   "./",
   "./index.html",
@@ -19,10 +19,9 @@ const OPTIONAL_FILES = [
   "./triage.js",
   "./guidance.js",
   "./adapter.js",
-  // Icons and fonts are optional: the PNG icons and woff2 fonts could not be
-  // pushed to this branch (binary upload), so the service worker must not
-  // fail installation when they are missing. They fall back to the SVG
-  // favicon and system fonts until someone with git access adds them.
+  // Icons and fonts are optional: if any are missing, the service worker
+  // must not fail installation. They fall back to the SVG favicon and
+  // system fonts until they are added.
   "./fonts/ibm-plex-sans-latin-400-normal.woff2",
   "./fonts/ibm-plex-sans-latin-500-normal.woff2",
   "./fonts/ibm-plex-sans-latin-600-normal.woff2",

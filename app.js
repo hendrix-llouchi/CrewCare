@@ -1278,6 +1278,43 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
     heading.focus();
   }
 
+  function renderMoreScreen() {
+    destroyCharts();
+    const screen = createElement("section", "more-screen");
+    const heading = createElement("h1", "page-header__title", "More");
+    heading.tabIndex = -1;
+    screen.append(heading);
+    const links = [
+      ["Messages", "#/messages", "Queued messages to Earth and their status."],
+      ["Inventory", "#/inventory", "Medical supplies, expiry dates and low stock."],
+      ["Guidance", "#/guidance", "How to take each measurement and why it matters."],
+      ["Check-in", "#/checkin", "Record a new health reading for a crew member."],
+      ["Crew", "#/crew", "Back to the crew dashboard."]
+    ];
+    links.forEach(function (entry) {
+      const link = createElement("a", "more-link", entry[0]);
+      link.href = entry[1];
+      const item = createElement("section", "card more-item");
+      item.append(link, createElement("p", "", entry[2]));
+      screen.append(item);
+    });
+    const about = createElement("section", "card more-about");
+    about.append(
+      createElement("h2", "", "About CrewCare"),
+      createElement("p", "", "Offline-first health companion for a crew with no doctor on board. All data is simulated demo data and stays on this device.")
+    );
+    const legal = createElement("p", "more-legal");
+    const privacyLink = createElement("a", "", "Privacy");
+    privacyLink.href = "./privacy.html";
+    const termsLink = createElement("a", "", "Terms");
+    termsLink.href = "./terms.html";
+    legal.append(privacyLink, document.createTextNode(" · "), termsLink);
+    about.append(legal);
+    screen.append(about);
+    app.replaceChildren(screen);
+    heading.focus();
+  }
+
   function appendCheckinResults(saveResult) {
     const section = createElement("section", "card checkin-results");
     section.setAttribute("aria-labelledby", "checkin-results-title");
@@ -1749,6 +1786,11 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
 
     if (routeHash === "#/inventory") {
       renderInventoryScreen();
+      return;
+    }
+
+    if (routeHash === "#/more") {
+      renderMoreScreen();
       return;
     }
 
