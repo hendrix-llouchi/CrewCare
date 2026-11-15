@@ -1,5 +1,3 @@
-const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
-
 (function () {
   const app = document.getElementById("app");
   const offlineNote = document.getElementById("offline-note");
@@ -70,7 +68,6 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
     blood: "bloodPressure",
     mood: "mood"
   };
-  const chartInstances = [];
   let activeSystem = "heart";
   let activeCrewId = null;
   let currentRouteHash = null;
@@ -80,6 +77,7 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
 
   const routes = {
     "#/crew": { heading: "Crew", section: "crew" },
+    "#/environment": { heading: "Environment", section: "more" },
     "#/checkin": { heading: "Check-in", section: "checkin" },
     "#/emergency": { heading: "Emergency", section: "emergency" },
     "#/more": { heading: "More", section: "more" },
@@ -174,7 +172,11 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
     const title = createElement("h2", "crew-card__name", member.name);
     const role = createElement("p", "crew-card__role", member.role);
     const story = createElement("p", "crew-card__story", member.storyLabel);
-    const status = createStatusBadge(getStatus(member.id));
+    const memberStatus = getStatus(member.id);
+    if (member.id === "crew-d") {
+      card.classList.add("crew-card--urgent");
+    }
+    const status = createStatusBadge(memberStatus);
     const summary = getLatestSummary(member.id);
     const reading = summary
       ? summary.label + ": " + summary.value + " " + summary.unit
@@ -204,11 +206,18 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
     });
     control.querySelector("[data-environment-delay]").textContent =
       "One-way delay: " + details.delayLabel;
+    const explanation = app.querySelector(".environment-screen__explanation");
+    if (explanation) {
+      explanation.textContent = details.name === "Mars"
+        ? "On Mars, the crew never waits for Earth. The Crew Medical Officer acts now; Earth advises when the message lands."
+        : "The selected setting controls how long a queued message takes to reach Earth in the demo.";
+    }
   }
 
-  function renderEnvironmentSwitch(container) {
+  function renderEnvironmentSwitch(container, showTitle) {
     const section = createElement("section", "environment-switch");
     const title = createElement("h2", "environment-switch__title", "Environment");
+    if (showTitle === false) title.classList.add("visually-hidden");
     const group = createElement("div", "environment-switch__options");
     group.setAttribute("role", "group");
     group.setAttribute("aria-label", "Mission environment");
@@ -237,15 +246,34 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
     const heading = createElement("h1", "page-header__title", "Crew");
     heading.tabIndex = -1;
 
-    const header = createElement("header", "home-screen__header");
+    const header = createElement("header", "home-screen__header screen-heading");
+    const crew = getCrew();
+    const rankedCrew = crew.map(function (member) {
+      return { member: member, status: getStatus(member.id) };
+    }).sort(function (left, right) {
+      const rank = { act: 0, warn: 1, watch: 2, ok: 3 };
+      const leftRank = Object.prototype.hasOwnProperty.call(rank, left.status.level) ? rank[left.status.level] : 4;
+      const rightRank = Object.prototype.hasOwnProperty.call(rank, right.status.level) ? rank[right.status.level] : 4;
+      return leftRank - rightRank;
+    });
+    const attentionCount = rankedCrew.filter(function (entry) {
+      return entry.status.level !== "ok";
+    }).length;
+    const emergencyCrew = rankedCrew.find(function (entry) {
+      return entry.member.id === "crew-d" && entry.status.level !== "ok";
+    });
+    const firstAttention = emergencyCrew || rankedCrew.find(function (entry) {
+      return entry.status.level !== "ok";
+    });
+    const attentionWord = { 1: "One", 2: "Two", 3: "Three", 4: "Four" }[attentionCount] || String(attentionCount);
     header.append(
       heading,
-      createElement("p", "home-screen__headline", HOME_HEADLINE),
-      createElement("p", "simulated-label", "Simulated data"),
-      createElement("p", "simulated-label__note", "Alert bands: team-defined demo values.")
+      createElement("p", "crew-summary", attentionCount
+        ? attentionWord + " of four need attention. " + firstAttention.member.name + " first — the rest can wait."
+        : "All four crew members are near their own baselines."),
+      createElement("p", "simulated-label__note", "Simulated demo data · team-defined alert bands.")
     );
 
-    const crew = getCrew();
     const cards = crew.map(createCrewCard);
     const crewGrid = createElement("div", "crew-grid");
     cards.forEach(function (result) {
@@ -253,8 +281,6 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
     });
 
     screen.append(header);
-    renderEnvironmentSwitch(screen);
-
     if (!cards.some(function (result) { return result.hasReading; })) {
       const emptyState = createElement("section", "empty-state crew-empty-state");
       emptyState.setAttribute("aria-labelledby", "crew-empty-title");
@@ -275,6 +301,43 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
     heading.focus();
   }
 
+  function renderEnvironmentScreen() {
+    destroyCharts();
+    const screen = createElement("section", "environment-screen screen-heading");
+    const heading = createElement("h1", "page-header__title", "Environment");
+    heading.tabIndex = -1;
+    const intro = createElement("p", "environment-screen__intro", "One switch. One consequence: the delay.");
+    const control = createElement("div", "environment-screen__control");
+    renderEnvironmentSwitch(control, false);
+    const explanation = createElement("p", "environment-screen__explanation");
+    const table = createElement("table", "environment-table");
+    const thead = createElement("thead");
+    const headerRow = createElement("tr");
+    ["Place", "Real one-way delay", "In the demo"].forEach(function (label) {
+      headerRow.append(createElement("th", "", label));
+    });
+    thead.append(headerRow);
+    const tbody = createElement("tbody");
+    [
+      ["ISS", "Near-instant", "5 seconds"],
+      ["Moon", "About 1.3 seconds", "5 seconds"],
+      ["Mars", "About 22 minutes (20 to 24)", "30 seconds"]
+    ].forEach(function (row) {
+      const tr = createElement("tr");
+      row.forEach(function (value) { tr.append(createElement("td", "", value)); });
+      tbody.append(tr);
+    });
+    table.append(thead, tbody);
+    screen.append(heading, intro, control, explanation, table);
+    app.replaceChildren(screen);
+    const environment = getEnvironment();
+    updateEnvironmentDisplay(setEnvironment(environment));
+    explanation.textContent = environment === "Mars"
+      ? "On Mars, the crew never waits for Earth. The Crew Medical Officer acts now; Earth advises when the message lands."
+      : "The selected setting controls how long a queued message takes to reach Earth in the demo.";
+    heading.focus();
+  }
+
   function createSvgElement(tagName, attributes) {
     const element = document.createElementNS("http://www.w3.org/2000/svg", tagName);
     Object.entries(attributes).forEach(function (entry) {
@@ -284,10 +347,7 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
   }
 
   function destroyCharts() {
-    chartInstances.forEach(function (chart) {
-      chart.destroy();
-    });
-    chartInstances.length = 0;
+    // Trend charts are inline SVGs and need no instance cleanup.
   }
 
   function bodyRegionCoordinates() {
@@ -400,15 +460,6 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
     return hiddenTable;
   }
 
-  function chartColors() {
-    const style = getComputedStyle(document.documentElement);
-    return {
-      line: style.getPropertyValue("--accent").trim(),
-      text: style.getPropertyValue("--text-muted").trim(),
-      grid: style.getPropertyValue("--border").trim()
-    };
-  }
-
   function createTrendChart(chartData, systemLabel) {
     const figure = createElement("figure", "trend-chart");
     const caption = createElement(
@@ -416,84 +467,98 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
       "trend-chart__caption",
       chartData.caption || "TODO(content)"
     );
-    const canvasWrap = createElement("div", "trend-chart__canvas-wrap");
-    const canvas = createElement("canvas", "trend-chart__canvas");
-    canvas.setAttribute("role", "img");
-    canvas.setAttribute("aria-label", systemLabel + ", " + chartData.label + " over 30 days");
-    canvasWrap.append(canvas);
-    figure.append(caption, canvasWrap, createChartTable(chartData));
+    const plotWrap = createElement("div", "trend-chart__plot-wrap");
+    const width = 800;
+    const height = 300;
+    const margin = { top: 22, right: 26, bottom: 48, left: 68 };
+    const plotWidth = width - margin.left - margin.right;
+    const plotHeight = height - margin.top - margin.bottom;
+    const points = chartData.points.filter(function (point) {
+      return point && Number.isFinite(Number(point.value));
+    });
+    const values = points.map(function (point) { return Number(point.value); });
+    const baseline = Number(chartData.baseline.value);
+    const minimum = Math.min.apply(null, values.concat([baseline]));
+    const maximum = Math.max.apply(null, values.concat([baseline]));
+    const padding = Math.max((maximum - minimum) * 0.12, 0.5);
+    const lower = minimum - padding;
+    const upper = maximum + padding;
+    const xAt = function (index) {
+      return margin.left + (points.length < 2 ? plotWidth / 2 : index * plotWidth / (points.length - 1));
+    };
+    const yAt = function (value) {
+      return margin.top + (upper - value) * plotHeight / (upper - lower);
+    };
+    const svg = createSvgElement("svg", {
+      class: "trend-chart__svg",
+      viewBox: "0 0 " + width + " " + height,
+      role: "img",
+      "aria-label": systemLabel + ", " + chartData.label + " over 30 days"
+    });
+    const title = createSvgElement("title", {});
+    title.textContent = systemLabel + ": " + chartData.label + " compared with personal baseline";
+    svg.append(title);
 
-    const colors = chartColors();
-    const labels = chartData.points.map(function (point) {
-      return point.date;
-    });
-    const chart = new Chart(canvas, {
-      type: "line",
-      data: {
-        labels: labels,
-        datasets: [
-          {
-            label: chartData.label,
-            data: chartData.points.map(function (point) { return point.value; }),
-            borderColor: colors.line,
-            backgroundColor: colors.line,
-            pointBackgroundColor: colors.line,
-            pointRadius: 2,
-            borderWidth: 2,
-            tension: 0.2
-          },
-          {
-            label: "Baseline, " + chartData.baseline.value + " " + chartData.baseline.unit,
-            data: labels.map(function () { return chartData.baseline.value; }),
-            borderColor: colors.text,
-            pointRadius: 0,
-            borderWidth: 2,
-            borderDash: [6, 4]
-          }
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        color: colors.text,
-        plugins: {
-          legend: { labels: { color: colors.text } },
-          tooltip: {
-            callbacks: {
-              title: function (items) {
-                return items.length ? formatFullDate(items[0].label) : "";
-              },
-              label: function (item) {
-                if (item.datasetIndex === 1) {
-                  return item.dataset.label;
-                }
-                return item.dataset.label + ": " + item.formattedValue + " " + chartData.unit;
-              }
-            }
-          }
-        },
-        scales: {
-          x: {
-            title: { display: true, text: "Date", color: colors.text },
-            ticks: {
-              color: colors.text,
-              autoSkip: true,
-              maxRotation: 0,
-              callback: function (value, index) {
-                return formatFullDate(labels[index]);
-              }
-            },
-            grid: { color: colors.grid }
-          },
-          y: {
-            title: { display: true, text: "Reading, " + chartData.unit, color: colors.text },
-            ticks: { color: colors.text },
-            grid: { color: colors.grid }
-          }
+    for (let tick = 0; tick <= 4; tick += 1) {
+      const value = upper - tick * (upper - lower) / 4;
+      const y = margin.top + tick * plotHeight / 4;
+      svg.append(
+        createSvgElement("line", {
+          x1: margin.left, y1: y, x2: width - margin.right, y2: y,
+          stroke: "var(--border)", "stroke-width": "1"
+        })
+      );
+      const tickLabel = createSvgElement("text", {
+        x: margin.left - 10, y: y + 4, "text-anchor": "end", class: "trend-chart__axis-label"
+      });
+      tickLabel.textContent = Number(value.toFixed(1)).toString();
+      svg.append(tickLabel);
+    }
+
+    const baselineY = yAt(baseline);
+    svg.append(createSvgElement("line", {
+      x1: margin.left, y1: baselineY, x2: width - margin.right, y2: baselineY,
+      stroke: "var(--text-muted)", "stroke-width": "2", "stroke-dasharray": "7 5"
+    }));
+
+    const pathData = points.map(function (point, index) {
+      return (index === 0 ? "M" : "L") + xAt(index) + " " + yAt(Number(point.value));
+    }).join(" ");
+    if (pathData) {
+      svg.append(createSvgElement("path", {
+        d: pathData, fill: "none", stroke: "var(--accent)", "stroke-width": "3",
+        "stroke-linecap": "round", "stroke-linejoin": "round"
+      }));
+      points.forEach(function (point, index) {
+        if (index === points.length - 1) {
+          svg.append(createSvgElement("circle", {
+            cx: xAt(index), cy: yAt(Number(point.value)), r: "5", fill: "var(--accent)"
+          }));
         }
-      }
+      });
+    }
+
+    if (points.length) {
+      [0, points.length - 1].forEach(function (index) {
+        const label = createSvgElement("text", {
+          x: xAt(index), y: height - 20,
+          "text-anchor": index === 0 ? "start" : "end",
+          class: "trend-chart__axis-label"
+        });
+        label.textContent = new Intl.DateTimeFormat("en", {
+          month: "short", day: "numeric", timeZone: "UTC"
+        }).format(new Date(points[index].date + "T00:00:00Z"));
+        svg.append(label);
+      });
+    }
+    const unitLabel = createSvgElement("text", {
+      x: 16, y: height / 2, transform: "rotate(-90 16 " + height / 2 + ")",
+      "text-anchor": "middle", class: "trend-chart__axis-label"
     });
-    chartInstances.push(chart);
+    unitLabel.textContent = chartData.unit;
+    svg.append(unitLabel);
+    plotWrap.append(svg);
+    figure.append(caption, plotWrap, createChartTable(chartData));
     return figure;
   }
 
@@ -566,10 +631,6 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
     } else {
       app.querySelector(".crew-detail").append(panel);
     }
-    chartInstances.forEach(function (chart) {
-      chart.resize();
-    });
-
     app.querySelectorAll(".body-figure__region").forEach(function (regionLink) {
       regionLink.setAttribute("aria-current", String(regionLink.dataset.system === system));
     });
@@ -1286,6 +1347,7 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
     screen.append(heading);
     const links = [
       ["Messages", "#/messages", "Queued messages to Earth and their status."],
+      ["Environment", "#/environment", "Mission setting and communication delay."],
       ["Inventory", "#/inventory", "Medical supplies, expiry dates and low stock."],
       ["Guidance", "#/guidance", "How to take each measurement and why it matters."],
       ["Check-in", "#/checkin", "Record a new health reading for a crew member."],
@@ -1303,13 +1365,6 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
       createElement("h2", "", "About CrewCare"),
       createElement("p", "", "Offline-first health companion for a crew with no doctor on board. All data is simulated demo data and stays on this device.")
     );
-    const legal = createElement("p", "more-legal");
-    const privacyLink = createElement("a", "", "Privacy");
-    privacyLink.href = "./privacy.html";
-    const termsLink = createElement("a", "", "Terms");
-    termsLink.href = "./terms.html";
-    legal.append(privacyLink, document.createTextNode(" · "), termsLink);
-    about.append(legal);
     screen.append(about);
     app.replaceChildren(screen);
     heading.focus();
@@ -1352,9 +1407,6 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
       }
     });
 
-    chartInstances.forEach(function (chart) {
-      chart.resize();
-    });
   }
 
   function submitCheckin(event) {
@@ -1626,12 +1678,24 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
       ["Tell Earth", outcome.tellEarth]
     ];
     const content = createElement("div", "emergency-outcome__sections");
-    sections.forEach(function (entry) {
+    sections.forEach(function (entry, index) {
       const section = createElement("section", "emergency-outcome__section");
-      section.append(
-        createElement("h2", "", entry[0]),
-        createElement("p", "", entry[1] || "TODO(content)")
+      const title = createElement("h2", "");
+      title.append(
+        createElement("span", "emergency-outcome__number", String(index + 1)),
+        document.createTextNode(entry[0])
       );
+      section.append(title);
+      const items = String(entry[1] || "TODO(content)").match(/[^.!?]+[.!?]?/g) || ["TODO(content)"];
+      if (index === 3) {
+        section.append(createElement("p", "", items.join(" ").trim()));
+      } else {
+        const list = createElement("ul", "emergency-outcome__list");
+        items.forEach(function (item) {
+          if (item.trim()) list.append(createElement("li", "", item.trim()));
+        });
+        section.append(list);
+      }
       content.append(section);
     });
 
@@ -1721,25 +1785,6 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
     }
   }
 
-  function updateChartTheme() {
-    const colors = chartColors();
-    chartInstances.forEach(function (chart) {
-      chart.options.color = colors.text;
-      chart.options.plugins.legend.labels.color = colors.text;
-      chart.options.scales.x.title.color = colors.text;
-      chart.options.scales.x.ticks.color = colors.text;
-      chart.options.scales.x.grid.color = colors.grid;
-      chart.options.scales.y.title.color = colors.text;
-      chart.options.scales.y.ticks.color = colors.text;
-      chart.options.scales.y.grid.color = colors.grid;
-      chart.data.datasets[0].borderColor = colors.line;
-      chart.data.datasets[0].backgroundColor = colors.line;
-      chart.data.datasets[0].pointBackgroundColor = colors.line;
-      chart.data.datasets[1].borderColor = colors.text;
-      chart.update();
-    });
-  }
-
   function renderRoute() {
     const routeHash = window.location.hash;
     clearMessagesTimer();
@@ -1786,6 +1831,11 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
 
     if (routeHash === "#/inventory") {
       renderInventoryScreen();
+      return;
+    }
+
+    if (routeHash === "#/environment") {
+      renderEnvironmentScreen();
       return;
     }
 
@@ -1861,7 +1911,6 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
   window.addEventListener("offline", updateOfflineNote);
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function () {
     updateThemeColor();
-    updateChartTheme();
   });
   registerServiceWorker();
 })();
