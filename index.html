@@ -24,7 +24,10 @@
       </div>
     </header>
 
-    <main id="app" aria-live="polite" aria-atomic="true"></main>
+    <main id="app" aria-live="polite" aria-atomic="true">
+      <p class="app-loading" role="status">Loading crew dashboard…</p>
+      <noscript><p class="app-loading__error">CrewCare needs JavaScript enabled to show the dashboard.</p></noscript>
+    </main>
 
     <nav class="bottom-nav" aria-label="Primary">
       <a class="bottom-nav__link" href="#/crew" data-nav="crew">

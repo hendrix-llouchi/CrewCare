@@ -195,6 +195,19 @@ textarea:focus-visible,
   padding: var(--space-8) clamp(var(--space-4), 4vw, var(--space-12));
 }
 
+.app-loading {
+  display: grid;
+  min-height: clamp(16rem, 55vh, 32rem);
+  place-items: center;
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.app-loading__error {
+  color: var(--red);
+  text-align: center;
+}
+
 h1,
 h2,
 .page-header__title,
