@@ -839,14 +839,6 @@ button {
   display: none;
 }
 
-.emergency-mode .bottom-nav {
-  grid-template-columns: minmax(0, 1fr);
-}
-
-.emergency-mode .bottom-nav__link:not([data-nav="emergency"]) {
-  display: none;
-}
-
 button:disabled,
 .button[aria-disabled="true"] {
   opacity: 0.6;
