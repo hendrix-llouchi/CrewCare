@@ -1,4 +1,4 @@
-const CACHE_NAME = "crewcare-shell-v13";
+const CACHE_NAME = "crewcare-shell-v14";
 const APP_FILES = [
   "./",
   "./index.html",
@@ -8,16 +8,7 @@ const APP_FILES = [
   "./stubs.js",
   "./sw.js",
   "./vendor/chart.min.js",
-  "./fonts/ibm-plex-sans-latin-400-normal.woff2",
-  "./fonts/ibm-plex-sans-latin-500-normal.woff2",
-  "./fonts/ibm-plex-sans-latin-600-normal.woff2",
-  "./fonts/ibm-plex-mono-latin-400-normal.woff2",
-  "./fonts/ibm-plex-mono-latin-500-normal.woff2",
   "./icons/favicon.svg",
-  "./icons/favicon-32.png",
-  "./icons/apple-touch-icon.png",
-  "./icons/icon-192.png",
-  "./icons/icon-512.png",
   "./manifest.json"
 ];
 const OPTIONAL_FILES = [
@@ -28,6 +19,19 @@ const OPTIONAL_FILES = [
   "./triage.js",
   "./guidance.js",
   "./adapter.js",
+  // Icons and fonts are optional: the PNG icons and woff2 fonts could not be
+  // pushed to this branch (binary upload), so the service worker must not
+  // fail installation when they are missing. They fall back to the SVG
+  // favicon and system fonts until someone with git access adds them.
+  "./fonts/ibm-plex-sans-latin-400-normal.woff2",
+  "./fonts/ibm-plex-sans-latin-500-normal.woff2",
+  "./fonts/ibm-plex-sans-latin-600-normal.woff2",
+  "./fonts/ibm-plex-mono-latin-400-normal.woff2",
+  "./fonts/ibm-plex-mono-latin-500-normal.woff2",
+  "./icons/favicon-32.png",
+  "./icons/apple-touch-icon.png",
+  "./icons/icon-192.png",
+  "./icons/icon-512.png",
   "./privacy.html",
   "./terms.html"
 ];
