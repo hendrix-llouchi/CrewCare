@@ -1,6 +1,11 @@
 // TEMPORARY stand-ins so screens can be built. Replace with data.js, trends.js and triage.js. All data here is SIMULATED.
 (function () {
-  const latestDate = "2026-11-14";
+  const currentDate = new Date();
+  const latestDate = new Date(Date.UTC(
+    currentDate.getFullYear(),
+    currentDate.getMonth(),
+    currentDate.getDate()
+  )).toISOString().slice(0, 10);
   const environments = {
     ISS: { name: "ISS", delaySeconds: 0, delayLabel: "Near-instant" },
     Moon: { name: "Moon", delaySeconds: 1.3, delayLabel: "About 1.3 seconds" },
@@ -13,8 +18,8 @@
     { id: "crew-d", name: "Crew member D", role: "Crew member", storyLabel: "Chest-pain emergency", simulated: true }
   ];
   const indicators = {
-    bloodPressureSystolic: { label: "Blood pressure", unit: "mmHg", base: 124, step: 0.1 },
-    bloodPressureDiastolic: { label: "Blood pressure", unit: "mmHg", base: 80, step: 0.1 },
+    bloodPressureSystolic: { label: "Blood pressure, systolic", unit: "mmHg", base: 124, step: 0.1 },
+    bloodPressureDiastolic: { label: "Blood pressure, diastolic", unit: "mmHg", base: 80, step: 0.1 },
     heartRate: { label: "Heart rate", unit: "beats per minute", base: 72, step: 0.2 },
     bloodSugar: { label: "Blood sugar", unit: "mmol/L", base: 5.4, step: 0.1 },
     temperature: { label: "Body temperature", unit: "degrees Celsius", base: 36.8, step: 0.1 },
@@ -102,6 +107,19 @@
     return Object.assign({}, environments[name]);
   }
 
+  function loadSavedReadings() {
+    const stored = window.localStorage.getItem("crewcare.readings");
+    if (!stored) {
+      return [];
+    }
+
+    const readings = JSON.parse(stored);
+    if (!Array.isArray(readings)) {
+      throw new TypeError("Saved CrewCare readings must be an array.");
+    }
+    return readings;
+  }
+
   if (typeof getCrew === "undefined") {
     window.getCrew = function () {
       return crew.map(function (member) {
@@ -133,9 +151,18 @@
         : Math.max(0, Math.min(30, Math.floor(Number(days))));
       const firstDay = 30 - count;
 
-      return Array.from({ length: count }, function (_, offset) {
+      if (count === 0) {
+        return [];
+      }
+
+      const today = new Date();
+      const simulated = Array.from({ length: count }, function (_, offset) {
         const dayIndex = firstDay + offset;
-        const date = new Date(Date.UTC(2026, 9, 16 + dayIndex))
+        const date = new Date(Date.UTC(
+          today.getFullYear(),
+          today.getMonth(),
+          today.getDate() - (29 - dayIndex)
+        ))
           .toISOString()
           .slice(0, 10);
         return {
@@ -145,6 +172,57 @@
           qualityOk: true
         };
       });
+      let saved = [];
+      try {
+        saved = loadSavedReadings().filter(function (reading) {
+          return reading.crewId === id &&
+            Object.prototype.hasOwnProperty.call(reading, indicator);
+        });
+      } catch (error) {
+        console.error("CrewCare could not read saved check-ins.", error);
+      }
+
+      const readingsByDate = new Map();
+      simulated.forEach(function (reading) {
+        readingsByDate.set(reading.date, reading);
+      });
+      saved.forEach(function (reading) {
+        readingsByDate.set(reading.date, {
+          date: reading.date,
+          value: reading[indicator],
+          unit: indicators[indicator].unit,
+          qualityOk: reading.qualityOk
+        });
+      });
+      return Array.from(readingsByDate.values())
+        .sort(function (first, second) {
+          return first.date.localeCompare(second.date);
+        })
+        .slice(-count);
+    };
+  }
+
+  if (typeof getChartData === "undefined") {
+    window.getChartData = function (id, indicator) {
+      const readings = window.getReadings(id, indicator, 30);
+      if (!readings.length) {
+        return null;
+      }
+
+      const baseline = window.getBaseline(id, indicator);
+      if (!baseline) {
+        return null;
+      }
+
+      return {
+        label: indicators[indicator].label,
+        unit: indicators[indicator].unit,
+        points: readings.map(function (reading) {
+          return { date: reading.date, value: reading.value };
+        }),
+        baseline: baseline,
+        caption: "TODO(content)"
+      };
     };
   }
 
@@ -166,6 +244,53 @@
 
   if (typeof getStatus === "undefined") {
     window.getStatus = createStatus;
+  }
+
+  if (typeof saveReading === "undefined") {
+    window.saveReading = function (crewId, readingObject) {
+      if (getMemberIndex(crewId) < 0 || !readingObject ||
+          !/^\d{4}-\d{2}-\d{2}$/.test(readingObject.date)) {
+        throw new TypeError("A valid crew member and check-in date are required.");
+      }
+
+      Object.keys(indicators).forEach(function (indicator) {
+        if (!Number.isFinite(readingObject[indicator])) {
+          throw new TypeError("A numeric value is required for " + indicator + ".");
+        }
+      });
+
+      try {
+        const readings = loadSavedReadings();
+        const storedReading = Object.assign(
+          { crewId: crewId },
+          readingObject,
+          { qualityOk: true }
+        );
+        const existingIndex = readings.findIndex(function (reading) {
+          return reading.crewId === crewId && reading.date === readingObject.date;
+        });
+        if (existingIndex < 0) {
+          readings.push(storedReading);
+        } else {
+          readings[existingIndex] = storedReading;
+        }
+        window.localStorage.setItem("crewcare.readings", JSON.stringify(readings));
+        return {
+          saved: true,
+          status: window.getStatus(crewId),
+          qualityOk: true,
+          qualityMessage: ""
+        };
+      } catch (error) {
+        console.error("CrewCare could not save the check-in.", error);
+        return {
+          saved: false,
+          status: window.getStatus(crewId),
+          qualityOk: false,
+          qualityMessage: "The reading could not be saved on this device."
+        };
+      }
+    };
   }
 
   if (typeof getSystemStatus === "undefined") {
