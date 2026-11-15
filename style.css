@@ -39,22 +39,25 @@
 }
 
 :root {
-  /* colour, light theme */
-  --bg: #F4F1EA;
+  /* colour, light theme — blue and white redesign */
+  --bg: #FFFFFF;
   --surface: #FFFFFF;
-  --text: #0F1A24;
-  --text-muted: #4A5560;
-  --accent: #1F6F8B;
+  --surface-tint: #EAF2FD;
+  --text: #0A1B33;
+  --text-muted: #44546A;
+  --accent: #0B5ED7;
+  --accent-dark: #0849A8;
   --on-accent: #FFFFFF;
   --green: #1E6B42;
   --amber: #7A4E00;
   --red: #A8221B;
   --on-red: #FFFFFF;
-  --border: #D6D0C4;
-  --border-input: #6B7580;
+  --border: #D3E0F2;
+  --border-input: #7A8CA8;
 
   /* type */
   --font-ui: "IBM Plex Sans", system-ui, sans-serif;
+  --font-display: Georgia, "Times New Roman", serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
   --text-sm: 14px;
   --text-base: 16px;
@@ -71,7 +74,8 @@
   --space-6: 24px;
   --space-8: 32px;
   --space-12: 48px;
-  --radius: 4px;
+  --radius: 8px;
+  --radius-pill: 999px;
   --tap-min: 48px;
   --tap-emergency: 56px;
   --focus-ring: 2px solid var(--accent);
@@ -80,18 +84,20 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0F1A24;
-    --surface: #16232F;
-    --text: #E8E4DB;
-    --text-muted: #A3ADB5;
-    --accent: #6FB3CC;
-    --on-accent: #0F1A24;
+    --bg: #081426;
+    --surface: #0F2138;
+    --surface-tint: #132C49;
+    --text: #EAF2FC;
+    --text-muted: #A9BCD6;
+    --accent: #7FB0F0;
+    --accent-dark: #5B93E6;
+    --on-accent: #081426;
     --green: #6CC28E;
     --amber: #E6B34D;
     --red: #F08A82;
-    --on-red: #0F1A24;
-    --border: #2A3A48;
-    --border-input: #7C8A96;
+    --on-red: #081426;
+    --border: #1D3557;
+    --border-input: #5C7AA5;
   }
 }
 
@@ -154,6 +160,7 @@ textarea:focus-visible,
 
 .brand {
   color: var(--text);
+  font-family: var(--font-display);
   font-size: var(--text-lg);
   font-weight: 600;
   text-decoration: none;
@@ -173,7 +180,16 @@ textarea:focus-visible,
 
 #app {
   width: 100%;
+  max-width: 44rem;
+  margin-inline: auto;
   padding: var(--space-8) var(--space-4);
+}
+
+h1,
+h2,
+.page-header__title,
+.home-screen__headline {
+  font-family: var(--font-display);
 }
 
 .page-header {
@@ -246,9 +262,9 @@ textarea:focus-visible,
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-1);
   border: thin solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-pill);
   padding: var(--space-1);
-  background: var(--surface);
+  background: var(--surface-tint);
 }
 
 .environment-switch__button {
@@ -545,7 +561,7 @@ button {
   justify-content: center;
   gap: var(--space-2);
   border: thin solid transparent;
-  border-radius: var(--radius);
+  border-radius: var(--radius-pill);
   padding: var(--space-2) var(--space-4);
   background: var(--accent);
   color: var(--on-accent);
