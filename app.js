@@ -1365,13 +1365,6 @@
       createElement("h2", "", "About CrewCare"),
       createElement("p", "", "Offline-first health companion for a crew with no doctor on board. All data is simulated demo data and stays on this device.")
     );
-    const legal = createElement("p", "more-legal");
-    const privacyLink = createElement("a", "", "Privacy");
-    privacyLink.href = "./privacy.html";
-    const termsLink = createElement("a", "", "Terms");
-    termsLink.href = "./terms.html";
-    legal.append(privacyLink, document.createTextNode(" · "), termsLink);
-    about.append(legal);
     screen.append(about);
     app.replaceChildren(screen);
     heading.focus();
