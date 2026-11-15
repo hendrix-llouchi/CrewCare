@@ -174,7 +174,7 @@
     const role = createElement("p", "crew-card__role", member.role);
     const story = createElement("p", "crew-card__story", member.storyLabel);
     const memberStatus = getStatus(member.id);
-    if (memberStatus.level === "act" || memberStatus.colour === "red") {
+    if (member.id === "crew-d") {
       card.classList.add("crew-card--urgent");
     }
     const status = createStatusBadge(memberStatus);
