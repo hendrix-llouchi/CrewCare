@@ -1,4 +1,4 @@
-const CACHE_NAME = "crewcare-shell-v15";
+const CACHE_NAME = "crewcare-shell-v16";
 const APP_FILES = [
   "./",
   "./index.html",
@@ -9,6 +9,7 @@ const APP_FILES = [
   "./sw.js",
   "./vendor/chart.min.js",
   "./icons/favicon.svg",
+  "./favicon.ico",
   "./manifest.json"
 ];
 const OPTIONAL_FILES = [
