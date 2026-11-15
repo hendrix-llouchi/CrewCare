@@ -19,6 +19,8 @@ All functions are synchronous, run offline, and make no network calls. Temporary
 - `getBaseline(id, indicator)` returns `{ value, unit }`.
 - `getLatestSummary(id)` returns `{ indicator, label, value, unit, date }` or `null`. This is the single most notable latest reading for a crew card.
 - `getChartData(id, indicator)` returns `{ label, unit, points: [{ date, value }], baseline: { value, unit }, caption }` or `null`. The detail screen requests 30-day chart data for one indicator at a time. If caption copy is not available, return `TODO(content)`.
+- `getRadiation(id)` returns `{ cumulativeMsv, days }`. The detail screen labels the cumulative amount in millisieverts and the covered duration in days. Its temporary simulated stand-in uses about 1 mSv per day, rounded to one decimal place. Radiation is shown without a status colour or flag. The ISS average copy is context only, not a safety limit.
+- The detail screen's sleep summary uses the latest record from `getReadings(id, "sleepHours", 30)` and compares it with `8.5 hours scheduled`. This schedule is shown as context, not as a threshold. A horizontal progress bar is accompanied by text values and a plain-language comparison. The ISS average copy is context only.
 
 ## Check-in (`data.js`, proposed)
 

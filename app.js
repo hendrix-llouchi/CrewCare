@@ -1746,7 +1746,7 @@ const HOME_HEADLINE = "Health checks for crews with no doctor on board.";
   }
 
   function registerServiceWorker() {
-    if ("serviceWorker" in navigator && window.location.protocol !== "file:") {
+    if ("serviceWorker" in navigator && window.isSecureContext) {
       navigator.serviceWorker.register("./sw.js").catch(function (error) {
         console.error("CrewCare could not enable offline support.", error);
       });
