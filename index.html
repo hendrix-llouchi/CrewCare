@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="Canvas">
+    <meta name="description" content="An offline-first health companion for crews.">
+    <title>CrewCare</title>
+    <link rel="manifest" href="./manifest.json">
+    <link rel="icon" href="./icons/favicon.svg" type="image/svg+xml">
+    <link rel="icon" href="./icons/favicon-32.png" sizes="32x32" type="image/png">
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+    <link rel="stylesheet" href="./style.css">
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="site-header__inner">
+        <a class="brand" href="#/crew">CrewCare</a>
+        <p class="offline-note" id="offline-note" role="status" hidden>
+          Offline: saving on this device
+        </p>
+      </div>
+    </header>
+
+    <main id="app" aria-live="polite" aria-atomic="true"></main>
+
+    <nav class="bottom-nav" aria-label="Primary">
+      <a class="bottom-nav__link" href="#/crew" data-nav="crew">
+        <span data-icon="crew" aria-hidden="true"></span>
+        <span>Crew</span>
+      </a>
+      <a class="bottom-nav__link" href="#/checkin" data-nav="checkin">
+        <span data-icon="check" aria-hidden="true"></span>
+        <span>Check-in</span>
+      </a>
+      <a class="bottom-nav__link" href="#/emergency" data-nav="emergency">
+        <span data-icon="emergency" aria-hidden="true"></span>
+        <span>Emergency</span>
+      </a>
+      <a class="bottom-nav__link" href="#/more" data-nav="more">
+        <span data-icon="more" aria-hidden="true"></span>
+        <span>More</span>
+      </a>
+    </nav>
+
+    <footer class="site-footer">
+      <a href="./privacy.html">Privacy</a>
+      <a href="./terms.html">Terms</a>
+    </footer>
+
+    <script src="./icons.js"></script>
+    <script src="./vendor/chart.min.js"></script>
+    <script src="./data.js"></script>
+    <script src="./trends.js"></script>
+    <script src="./triage.js"></script>
+    <script src="./stubs.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
