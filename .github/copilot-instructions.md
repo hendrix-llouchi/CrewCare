@@ -79,3 +79,79 @@ Calm, precise, clinical instrument panel. Not a startup landing page.
 3. After coding, check your work against every rule above and list any rule
    you could not meet. Do not say "done" until you have checked.
 4. If anything is ambiguous, ask one question instead of guessing.
+
+## Design tokens (exact values, do not invent others)
+
+Define these once in `:root` in style.css. Never write a raw hex value, pixel
+size or font name anywhere else in the project. Always use the variable.
+
+```css
+:root {
+  /* colour, light theme */
+  --bg: #F4F1EA;
+  --surface: #FFFFFF;
+  --text: #0F1A24;
+  --text-muted: #4A5560;
+  --accent: #1F6F8B;
+  --on-accent: #FFFFFF;
+  --green: #1E6B42;
+  --amber: #7A4E00;
+  --red: #A8221B;
+  --on-red: #FFFFFF;
+  --border: #D6D0C4;
+  --border-input: #6B7580;
+
+  /* type */
+  --font-ui: "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --text-sm: 14px;
+  --text-base: 16px;
+  --text-lg: 18px;
+  --text-action: 24px;   /* emergency action text, equals 18pt */
+  --text-xl: 28px;
+  --text-2xl: 36px;
+
+  /* space, shape, motion */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --radius: 4px;
+  --tap-min: 48px;
+  --tap-emergency: 56px;
+  --focus-ring: 2px solid var(--accent);
+  --transition: 120ms ease-out;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0F1A24;
+    --surface: #16232F;
+    --text: #E8E4DB;
+    --text-muted: #A3ADB5;
+    --accent: #6FB3CC;
+    --on-accent: #0F1A24;
+    --green: #6CC28E;
+    --amber: #E6B34D;
+    --red: #F08A82;
+    --on-red: #0F1A24;
+    --border: #2A3A48;
+    --border-input: #7C8A96;
+  }
+}
+```
+
+Rules for using the tokens:
+- Body text uses --text-base. Emergency action text uses --text-action.
+- Numbers, units, dates and readings use --font-mono. Everything else uses --font-ui.
+- Cards: --surface background, 1px solid --border, --radius, no shadow.
+- Inputs: 1px solid --border-input. Focus: outline var(--focus-ring) with 2px offset.
+- Status colours (--green, --amber, --red) are always paired with a word and
+  an arrow icon. Never use them alone.
+- Buttons: --radius, min-height --tap-min, and --tap-emergency on emergency screens.
+- The only transition is var(--transition), and only on color, background-color,
+  border-color and opacity. Wrap in @media (prefers-reduced-motion: no-preference).
+- Use only the spacing variables for margin, padding and gap.
