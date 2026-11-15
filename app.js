@@ -68,7 +68,6 @@
     blood: "bloodPressure",
     mood: "mood"
   };
-  const chartInstances = [];
   let activeSystem = "heart";
   let activeCrewId = null;
   let currentRouteHash = null;
@@ -348,10 +347,7 @@
   }
 
   function destroyCharts() {
-    chartInstances.forEach(function (chart) {
-      chart.destroy();
-    });
-    chartInstances.length = 0;
+    // Trend charts are inline SVGs and need no instance cleanup.
   }
 
   function bodyRegionCoordinates() {
@@ -464,15 +460,6 @@
     return hiddenTable;
   }
 
-  function chartColors() {
-    const style = getComputedStyle(document.documentElement);
-    return {
-      line: style.getPropertyValue("--accent").trim(),
-      text: style.getPropertyValue("--text-muted").trim(),
-      grid: style.getPropertyValue("--border").trim()
-    };
-  }
-
   function createTrendChart(chartData, systemLabel) {
     const figure = createElement("figure", "trend-chart");
     const caption = createElement(
@@ -480,84 +467,98 @@
       "trend-chart__caption",
       chartData.caption || "TODO(content)"
     );
-    const canvasWrap = createElement("div", "trend-chart__canvas-wrap");
-    const canvas = createElement("canvas", "trend-chart__canvas");
-    canvas.setAttribute("role", "img");
-    canvas.setAttribute("aria-label", systemLabel + ", " + chartData.label + " over 30 days");
-    canvasWrap.append(canvas);
-    figure.append(caption, canvasWrap, createChartTable(chartData));
+    const plotWrap = createElement("div", "trend-chart__plot-wrap");
+    const width = 800;
+    const height = 300;
+    const margin = { top: 22, right: 26, bottom: 48, left: 68 };
+    const plotWidth = width - margin.left - margin.right;
+    const plotHeight = height - margin.top - margin.bottom;
+    const points = chartData.points.filter(function (point) {
+      return point && Number.isFinite(Number(point.value));
+    });
+    const values = points.map(function (point) { return Number(point.value); });
+    const baseline = Number(chartData.baseline.value);
+    const minimum = Math.min.apply(null, values.concat([baseline]));
+    const maximum = Math.max.apply(null, values.concat([baseline]));
+    const padding = Math.max((maximum - minimum) * 0.12, 0.5);
+    const lower = minimum - padding;
+    const upper = maximum + padding;
+    const xAt = function (index) {
+      return margin.left + (points.length < 2 ? plotWidth / 2 : index * plotWidth / (points.length - 1));
+    };
+    const yAt = function (value) {
+      return margin.top + (upper - value) * plotHeight / (upper - lower);
+    };
+    const svg = createSvgElement("svg", {
+      class: "trend-chart__svg",
+      viewBox: "0 0 " + width + " " + height,
+      role: "img",
+      "aria-label": systemLabel + ", " + chartData.label + " over 30 days"
+    });
+    const title = createSvgElement("title", {});
+    title.textContent = systemLabel + ": " + chartData.label + " compared with personal baseline";
+    svg.append(title);
 
-    const colors = chartColors();
-    const labels = chartData.points.map(function (point) {
-      return point.date;
-    });
-    const chart = new Chart(canvas, {
-      type: "line",
-      data: {
-        labels: labels,
-        datasets: [
-          {
-            label: chartData.label,
-            data: chartData.points.map(function (point) { return point.value; }),
-            borderColor: colors.line,
-            backgroundColor: colors.line,
-            pointBackgroundColor: colors.line,
-            pointRadius: 2,
-            borderWidth: 2,
-            tension: 0.2
-          },
-          {
-            label: "Baseline, " + chartData.baseline.value + " " + chartData.baseline.unit,
-            data: labels.map(function () { return chartData.baseline.value; }),
-            borderColor: colors.text,
-            pointRadius: 0,
-            borderWidth: 2,
-            borderDash: [6, 4]
-          }
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        color: colors.text,
-        plugins: {
-          legend: { labels: { color: colors.text } },
-          tooltip: {
-            callbacks: {
-              title: function (items) {
-                return items.length ? formatFullDate(items[0].label) : "";
-              },
-              label: function (item) {
-                if (item.datasetIndex === 1) {
-                  return item.dataset.label;
-                }
-                return item.dataset.label + ": " + item.formattedValue + " " + chartData.unit;
-              }
-            }
-          }
-        },
-        scales: {
-          x: {
-            title: { display: true, text: "Date", color: colors.text },
-            ticks: {
-              color: colors.text,
-              autoSkip: true,
-              maxRotation: 0,
-              callback: function (value, index) {
-                return formatFullDate(labels[index]);
-              }
-            },
-            grid: { color: colors.grid }
-          },
-          y: {
-            title: { display: true, text: "Reading, " + chartData.unit, color: colors.text },
-            ticks: { color: colors.text },
-            grid: { color: colors.grid }
-          }
+    for (let tick = 0; tick <= 4; tick += 1) {
+      const value = upper - tick * (upper - lower) / 4;
+      const y = margin.top + tick * plotHeight / 4;
+      svg.append(
+        createSvgElement("line", {
+          x1: margin.left, y1: y, x2: width - margin.right, y2: y,
+          stroke: "var(--border)", "stroke-width": "1"
+        })
+      );
+      const tickLabel = createSvgElement("text", {
+        x: margin.left - 10, y: y + 4, "text-anchor": "end", class: "trend-chart__axis-label"
+      });
+      tickLabel.textContent = Number(value.toFixed(1)).toString();
+      svg.append(tickLabel);
+    }
+
+    const baselineY = yAt(baseline);
+    svg.append(createSvgElement("line", {
+      x1: margin.left, y1: baselineY, x2: width - margin.right, y2: baselineY,
+      stroke: "var(--text-muted)", "stroke-width": "2", "stroke-dasharray": "7 5"
+    }));
+
+    const pathData = points.map(function (point, index) {
+      return (index === 0 ? "M" : "L") + xAt(index) + " " + yAt(Number(point.value));
+    }).join(" ");
+    if (pathData) {
+      svg.append(createSvgElement("path", {
+        d: pathData, fill: "none", stroke: "var(--accent)", "stroke-width": "3",
+        "stroke-linecap": "round", "stroke-linejoin": "round"
+      }));
+      points.forEach(function (point, index) {
+        if (index === points.length - 1) {
+          svg.append(createSvgElement("circle", {
+            cx: xAt(index), cy: yAt(Number(point.value)), r: "5", fill: "var(--accent)"
+          }));
         }
-      }
+      });
+    }
+
+    if (points.length) {
+      [0, points.length - 1].forEach(function (index) {
+        const label = createSvgElement("text", {
+          x: xAt(index), y: height - 20,
+          "text-anchor": index === 0 ? "start" : "end",
+          class: "trend-chart__axis-label"
+        });
+        label.textContent = new Intl.DateTimeFormat("en", {
+          month: "short", day: "numeric", timeZone: "UTC"
+        }).format(new Date(points[index].date + "T00:00:00Z"));
+        svg.append(label);
+      });
+    }
+    const unitLabel = createSvgElement("text", {
+      x: 16, y: height / 2, transform: "rotate(-90 16 " + height / 2 + ")",
+      "text-anchor": "middle", class: "trend-chart__axis-label"
     });
-    chartInstances.push(chart);
+    unitLabel.textContent = chartData.unit;
+    svg.append(unitLabel);
+    plotWrap.append(svg);
+    figure.append(caption, plotWrap, createChartTable(chartData));
     return figure;
   }
 
@@ -630,10 +631,6 @@
     } else {
       app.querySelector(".crew-detail").append(panel);
     }
-    chartInstances.forEach(function (chart) {
-      chart.resize();
-    });
-
     app.querySelectorAll(".body-figure__region").forEach(function (regionLink) {
       regionLink.setAttribute("aria-current", String(regionLink.dataset.system === system));
     });
@@ -1417,9 +1414,6 @@
       }
     });
 
-    chartInstances.forEach(function (chart) {
-      chart.resize();
-    });
   }
 
   function submitCheckin(event) {
@@ -1798,25 +1792,6 @@
     }
   }
 
-  function updateChartTheme() {
-    const colors = chartColors();
-    chartInstances.forEach(function (chart) {
-      chart.options.color = colors.text;
-      chart.options.plugins.legend.labels.color = colors.text;
-      chart.options.scales.x.title.color = colors.text;
-      chart.options.scales.x.ticks.color = colors.text;
-      chart.options.scales.x.grid.color = colors.grid;
-      chart.options.scales.y.title.color = colors.text;
-      chart.options.scales.y.ticks.color = colors.text;
-      chart.options.scales.y.grid.color = colors.grid;
-      chart.data.datasets[0].borderColor = colors.line;
-      chart.data.datasets[0].backgroundColor = colors.line;
-      chart.data.datasets[0].pointBackgroundColor = colors.line;
-      chart.data.datasets[1].borderColor = colors.text;
-      chart.update();
-    });
-  }
-
   function renderRoute() {
     const routeHash = window.location.hash;
     clearMessagesTimer();
@@ -1943,7 +1918,6 @@
   window.addEventListener("offline", updateOfflineNote);
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function () {
     updateThemeColor();
-    updateChartTheme();
   });
   registerServiceWorker();
 })();
