@@ -1,1 +1,16 @@
-{"background_color":"#f4f4f4","description":"Offline-first health companion for astronauts on Mars missions. NASA Space Apps Challenge 2026.","display":"standalone","icons":[{"purpose":"any","sizes":"512x512","src":"icon.svg","type":"image/svg+xml"}],"name":"CrewCare — Astronaut Health Companion","short_name":"CrewCare","start_url":"./index.html","theme_color":"#111111"}
+{
+  "name": "CrewCare",
+  "short_name": "CrewCare",
+  "description": "Offline health companion for crews with no doctor on board. Uses simulated data.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0F1A24",
+  "theme_color": "#0F1A24",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
